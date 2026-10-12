@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Printer, CheckCircle2, Wifi, Usb, Bluetooth, RefreshCw, X, FileText, Check } from "lucide-react";
+import SearchableDropdown from "./SearchableDropdown";
 
 interface PrinterModalProps {
   isOpen: boolean;
@@ -11,13 +12,15 @@ interface PrinterModalProps {
 
 export default function PrinterModal({ isOpen, onClose, onConnected }: PrinterModalProps) {
   const [connectionType, setConnectionType] = useState<"usb" | "lan" | "bluetooth">("usb");
-  const [selectedPrinter, setSelectedPrinter] = useState("TVS RP-3200 Star (ESC/POS 80mm)");
+  const [selectedPrinter, setSelectedPrinter] = useState("");
   const [paperWidth, setPaperWidth] = useState("80mm");
-  const [ipAddress, setIpAddress] = useState("192.168.1.150");
-  const [port, setPort] = useState("9100");
+  const [ipAddress, setIpAddress] = useState("");
+  const [port, setPort] = useState("");
+  const [bluetoothDevice, setBluetoothDevice] = useState("");
+  const [autoCutter, setAutoCutter] = useState("");
   const [isTesting, setIsTesting] = useState(false);
   const [testSuccess, setTestSuccess] = useState(false);
-  const [isConnected, setIsConnected] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
 
   if (!isOpen) return null;
 
@@ -112,16 +115,17 @@ export default function PrinterModal({ isOpen, onClose, onConnected }: PrinterMo
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-zinc-700 mb-1.5">Detected USB Printer</label>
-                <select
+                <SearchableDropdown
                   value={selectedPrinter}
-                  onChange={(e) => setSelectedPrinter(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-800 focus:border-emerald-500 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                >
-                  <option value="TVS RP-3200 Star (ESC/POS 80mm)">TVS RP-3200 Star (ESC/POS 80mm) - [Connected USB001]</option>
-                  <option value="EPSON TM-T88VI Thermal">EPSON TM-T88VI Thermal Receipt - [Ready USB002]</option>
-                  <option value="Posiflex AURA-6900">Posiflex AURA-6900 Series - [Available]</option>
-                  <option value="Generic 58mm Thermal Printer">Generic 58mm Mini USB Thermal</option>
-                </select>
+                  onChange={(val) => setSelectedPrinter(val)}
+                  options={[
+                    { value: "TVS RP-3200 Star (ESC/POS 80mm)", label: "TVS RP-3200 Star (ESC/POS 80mm) - [Connected USB001]" },
+                    { value: "EPSON TM-T88VI Thermal", label: "EPSON TM-T88VI Thermal Receipt - [Ready USB002]" },
+                    { value: "Posiflex AURA-6900", label: "Posiflex AURA-6900 Series - [Available]" },
+                    { value: "Generic 58mm Thermal Printer", label: "Generic 58mm Mini USB Thermal" },
+                  ]}
+                  placeholder="Select USB Printer..."
+                />
               </div>
             </div>
           ) : connectionType === "lan" ? (
@@ -150,14 +154,21 @@ export default function PrinterModal({ isOpen, onClose, onConnected }: PrinterMo
           ) : (
             <div>
               <label className="block text-xs font-medium text-zinc-700 mb-1.5">Bluetooth Device</label>
-              <div className="flex gap-2">
-                <select className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-800 focus:border-emerald-500 cursor-pointer">
-                  <option>RP-BT-800 (Paired - In Range)</option>
-                  <option>MPT-II Mobile POS Printer</option>
-                </select>
+              <div className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <SearchableDropdown
+                    value={bluetoothDevice}
+                    onChange={(val) => setBluetoothDevice(val)}
+                    options={[
+                      { value: "RP-BT-800 (Paired - In Range)", label: "RP-BT-800 (Paired - In Range)" },
+                      { value: "MPT-II Mobile POS Printer", label: "MPT-II Mobile POS Printer" },
+                    ]}
+                    placeholder="Select Bluetooth Device..."
+                  />
+                </div>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer h-[38px] shrink-0"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                   Scan
@@ -190,11 +201,16 @@ export default function PrinterModal({ isOpen, onClose, onConnected }: PrinterMo
 
             <div>
               <label className="block text-xs font-medium text-zinc-700 mb-1.5">Auto-Cutter Action</label>
-              <select className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-800 cursor-pointer">
-                <option>Full Cut After Bill</option>
-                <option>Partial Cut</option>
-                <option>Do Not Cut</option>
-              </select>
+              <SearchableDropdown
+                value={autoCutter}
+                onChange={(val) => setAutoCutter(val)}
+                options={[
+                  { value: "Full Cut After Bill", label: "Full Cut After Bill" },
+                  { value: "Partial Cut", label: "Partial Cut" },
+                  { value: "Do Not Cut", label: "Do Not Cut" },
+                ]}
+                placeholder="Select Cutter Action..."
+              />
             </div>
           </div>
 

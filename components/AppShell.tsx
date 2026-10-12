@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import PrinterModal from "./PrinterModal";
@@ -11,7 +11,23 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   const [isPrinterModalOpen, setIsPrinterModalOpen] = useState(false);
-  const [connectedPrinter, setConnectedPrinter] = useState("TVS RP-3200 Star (ESC/POS 80mm)");
+  const [connectedPrinter, setConnectedPrinter] = useState("");
+
+  // Prevent mouse wheel from inadvertently changing values on number inputs
+  useEffect(() => {
+    const handleWheel = () => {
+      if (
+        document.activeElement instanceof HTMLInputElement &&
+        document.activeElement.type === "number"
+      ) {
+        document.activeElement.blur();
+      }
+    };
+    window.addEventListener("wheel", handleWheel, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-zinc-900 font-sans antialiased selection:bg-emerald-500 selection:text-white">

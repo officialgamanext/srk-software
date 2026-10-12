@@ -10,6 +10,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Toast, { type ToastMessage } from "@/components/Toast";
+import SearchableDropdown, { type DropdownOption } from "@/components/SearchableDropdown";
+import CustomDateTimePicker from "@/components/CustomDateTimePicker";
 import { compressImageTo60KB } from "@/lib/imageCompressor";
 import { 
   ArrowLeft, 
@@ -27,7 +29,8 @@ import {
   Boxes, 
   X,
   Hash,
-  Palette
+  Palette,
+  Sparkles
 } from "lucide-react";
 
 // Inline Barcode Icon for clean POS branding
@@ -80,7 +83,7 @@ export interface VariantRow {
   listPrice: string;
   salePrice: string;
   gstRate: string;
-  taxType: "inclusive" | "exclusive";
+  taxType: "inclusive" | "exclusive" | "";
   inventory: StoreStockAllocation[];
   totalStock: number;
 }
@@ -97,6 +100,21 @@ interface LocationOption {
   address?: string;
 }
 
+// GST Options for Searchable Dropdowns
+const GST_OPTIONS: DropdownOption[] = [
+  { value: "0", label: "0% GST", sublabel: "Nil rated / Exempt" },
+  { value: "3", label: "3% GST", sublabel: "Gold / Precious metals" },
+  { value: "5", label: "5% GST", sublabel: "Apparel / Essentials" },
+  { value: "12", label: "12% GST", sublabel: "Standard processed foods" },
+  { value: "18", label: "18% GST", sublabel: "General merchandise standard rate" },
+  { value: "28", label: "28% GST", sublabel: "Luxury / Premium goods" },
+];
+
+const TAX_TYPE_OPTIONS: DropdownOption[] = [
+  { value: "inclusive", label: "Tax Inclusive", sublabel: "Retail MRP already includes GST" },
+  { value: "exclusive", label: "Tax Exclusive", sublabel: "GST added on top at POS checkout" },
+];
+
 export default function AddProductView() {
   const router = useRouter();
 
@@ -111,6 +129,7 @@ export default function AddProductView() {
   const [shortcode, setShortcode] = useState("");
   const [barcode, setBarcode] = useState("");
   const [sku, setSku] = useState("");
+  const [scheduledDateTime, setScheduledDateTime] = useState("");
 
   // Media state
   const [uploadedImages, setUploadedImages] = useState<
@@ -122,22 +141,18 @@ export default function AddProductView() {
   // Variants Toggle
   const [hasVariants, setHasVariants] = useState(false);
 
-  // Simple Product Pricing & Tax
+  // Simple Product Pricing & Tax - NO PREBUILT DEFAULTS
   const [simpleListPrice, setSimpleListPrice] = useState("");
   const [simpleSalePrice, setSimpleSalePrice] = useState("");
-  const [simpleGstRate, setSimpleGstRate] = useState("18");
-  const [simpleTaxType, setSimpleTaxType] = useState<"inclusive" | "exclusive">("inclusive");
+  const [simpleGstRate, setSimpleGstRate] = useState("");
+  const [simpleTaxType, setSimpleTaxType] = useState<"inclusive" | "exclusive" | "">("");
   const [simpleInventory, setSimpleInventory] = useState<StoreStockAllocation[]>([]);
 
   // Flexible Color & Size Variant Matrix:
-  // Each color has its own independent list of available sizes!
-  const [colors, setColors] = useState<string[]>(["Red", "Blue", "Black"]);
-  const [sizes, setSizes] = useState<string[]>(["S", "M", "L", "XL"]);
-  const [colorSizesMap, setColorSizesMap] = useState<{ [color: string]: string[] }>({
-    Red: ["S", "M"],
-    Blue: ["M", "L", "XL"],
-    Black: ["L", "XL"],
-  });
+  // Starts completely EMPTY - NO PREBUILT COLORS OR SIZES!
+  const [colors, setColors] = useState<string[]>([]);
+  const [sizes, setSizes] = useState<string[]>([]);
+  const [colorSizesMap, setColorSizesMap] = useState<{ [color: string]: string[] }>({});
 
   // Inputs for adding new color or size
   const [newColorInput, setNewColorInput] = useState("");
@@ -146,7 +161,7 @@ export default function AddProductView() {
   // Bulk price setter for variants
   const [bulkListPrice, setBulkListPrice] = useState("");
   const [bulkSalePrice, setBulkSalePrice] = useState("");
-  const [bulkGstRate, setBulkGstRate] = useState("18");
+  const [bulkGstRate, setBulkGstRate] = useState("");
 
   // Variant Rows
   const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
@@ -170,9 +185,7 @@ export default function AddProductView() {
           catList.push({ id: doc.id, name: doc.data().name || "Unnamed Category" });
         });
         setCategories(catList);
-        if (catList.length > 0) {
-          setCategoryId(catList[0].id);
-        }
+        // Do NOT select any category by default
 
         const storesSnap = await getDocs(collection(db, "stores"));
         const locList: LocationOption[] = [];
@@ -242,10 +255,10 @@ export default function AddProductView() {
               attributes: { Color: color, Size: size },
               barcode: varBarcode,
               shortcode: varShortcode,
-              listPrice: simpleListPrice || bulkListPrice || "0",
-              salePrice: simpleSalePrice || bulkSalePrice || "0",
-              gstRate: simpleGstRate || bulkGstRate || "18",
-              taxType: simpleTaxType || "inclusive",
+              listPrice: simpleListPrice || bulkListPrice || "",
+              salePrice: simpleSalePrice || bulkSalePrice || "",
+              gstRate: simpleGstRate || bulkGstRate || "",
+              taxType: (simpleTaxType as "inclusive" | "exclusive" | "") || "",
               inventory: [],
               totalStock: 0,
             });
@@ -257,11 +270,10 @@ export default function AddProductView() {
     });
   }, [barcode, shortcode, simpleListPrice, simpleSalePrice, simpleGstRate, simpleTaxType, bulkListPrice, bulkSalePrice, bulkGstRate]);
 
-  // Initial build of barcode & variant rows on client mount (deferred from prerender)
+  // Initial client mount: generate barcode
   useEffect(() => {
     setBarcode(generate8DigitBarcode());
-    syncVariantRows(colorSizesMap);
-  }, []); // Run once on client mount
+  }, []);
 
   // Toggle a specific size under a specific color
   const handleToggleColorSize = (color: string, size: string) => {
@@ -288,12 +300,9 @@ export default function AddProductView() {
     }
     const updatedColors = [...colors, trimmed];
     setColors(updatedColors);
-    setColorSizesMap((prev) => {
-      const newMap = { ...prev, [trimmed]: [] }; // Start with 0 sizes selected
-      return newMap;
-    });
+    setColorSizesMap((prev) => ({ ...prev, [trimmed]: [] }));
     setNewColorInput("");
-    setToast({ type: "success", message: `Added "${trimmed}". Now select which sizes are available for it.` });
+    setToast({ type: "success", message: `Added color "${trimmed}". Now select or add sizes for it.` });
   };
 
   // Remove a color entirely
@@ -313,24 +322,27 @@ export default function AddProductView() {
     const trimmed = newSizeInput.trim().toUpperCase();
     if (!trimmed) return;
     if (sizes.includes(trimmed)) {
-      setToast({ type: "info", message: `Size "${trimmed}" is already in the list` });
+      setToast({ type: "info", message: `Size "${trimmed}" is already added` });
       return;
     }
     setSizes((prev) => [...prev, trimmed]);
     setNewSizeInput("");
   };
 
-  // Remove a master size
-  const handleRemoveSize = (sizeToRemove: string) => {
-    setSizes((prev) => prev.filter((s) => s !== sizeToRemove));
-    setColorSizesMap((prev) => {
-      const updatedMap: { [c: string]: string[] } = {};
-      Object.entries(prev).forEach(([c, szList]) => {
-        updatedMap[c] = szList.filter((s) => s !== sizeToRemove);
-      });
-      syncVariantRows(updatedMap);
-      return updatedMap;
-    });
+  // Quick preset helper to add common apparel sizes
+  const handleAddCommonSizesPreset = () => {
+    const common = ["S", "M", "L", "XL", "XXL"];
+    const merged = Array.from(new Set([...sizes, ...common]));
+    setSizes(merged);
+    setToast({ type: "info", message: "Added common apparel sizes (S, M, L, XL, XXL)" });
+  };
+
+  // Quick preset helper to add common footwear sizes
+  const handleAddFootwearSizesPreset = () => {
+    const common = ["6", "7", "8", "9", "10", "11"];
+    const merged = Array.from(new Set([...sizes, ...common]));
+    setSizes(merged);
+    setToast({ type: "info", message: "Added standard footwear sizes (6 to 11)" });
   };
 
   // Select all sizes for a color
@@ -373,7 +385,7 @@ export default function AddProductView() {
 
   // Add a manual custom variant row
   const handleAddCustomVariantRow = () => {
-    const customName = prompt("Enter custom variant name (e.g. 'Red / Free Size' or 'Navy / XXL / Premium'):");
+    const customName = prompt("Enter custom variant name (e.g. 'Red / Free Size' or 'Navy / Cotton / Special'):");
     if (!customName || !customName.trim()) return;
 
     const varBarcode = generate8DigitBarcode();
@@ -564,6 +576,7 @@ export default function AddProductView() {
         shortcode: shortcode.trim(),
         barcode: barcode.trim(),
         sku: sku.trim() || `SKU-${Date.now().toString().slice(-6)}`,
+        scheduledDateTime: scheduledDateTime || createdAt,
         media: uploadedImages,
         hasVariants,
         status: "Active",
@@ -622,6 +635,12 @@ export default function AddProductView() {
       setSavingProduct(false);
     }
   };
+
+  // Convert categories list to DropdownOption format
+  const categoryOptions: DropdownOption[] = categories.map((c) => ({
+    value: c.id,
+    label: c.name,
+  }));
 
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-3rem)] overflow-y-auto bg-white font-sans select-none">
@@ -695,25 +714,18 @@ export default function AddProductView() {
               />
             </div>
 
+            {/* Custom Searchable Dropdown for Category */}
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-zinc-700">
                 Category <span className="text-rose-500">*</span>
               </label>
-              <select
+              <SearchableDropdown
+                options={categoryOptions}
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-800 focus:border-emerald-500 focus:outline-hidden cursor-pointer"
-              >
-                {categories.length === 0 ? (
-                  <option value="">No categories available (add one)</option>
-                ) : (
-                  categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))
-                )}
-              </select>
+                onChange={(val) => setCategoryId(val)}
+                placeholder="Search or select category..."
+                searchPlaceholder="Filter categories..."
+              />
             </div>
 
             <div className="md:col-span-3 space-y-1.5">
@@ -729,7 +741,7 @@ export default function AddProductView() {
               />
             </div>
 
-            {/* Shortcode on the left, Barcode beside it on the right (NOT EDITABLE), and SKU Code */}
+            {/* Shortcode on the left, Barcode beside it on the right (NOT EDITABLE), and Custom Date/Time */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-medium text-zinc-700 flex items-center gap-1.5">
@@ -780,16 +792,16 @@ export default function AddProductView() {
               />
             </div>
 
+            {/* Custom Date & Time Picker */}
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-zinc-700">
-                SKU Code (Optional)
+                Launch / Availability Date & Time
               </label>
-              <input
-                type="text"
-                placeholder="e.g. SKU-8809"
-                value={sku}
-                onChange={(e) => setSku(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-900 focus:border-emerald-500 focus:outline-hidden font-mono"
+              <CustomDateTimePicker
+                value={scheduledDateTime}
+                onChange={(val) => setScheduledDateTime(val)}
+                placeholder="Pick calendar date & time..."
+                includeTime={true}
               />
             </div>
           </div>
@@ -878,8 +890,8 @@ export default function AddProductView() {
             <div className="flex items-center gap-2">
               <Sliders className="h-4 w-4 text-emerald-600" />
               <div>
-                <h2 className="text-sm font-semibold text-zinc-900">Product Variants & Color-Wise Sizes</h2>
-                <p className="text-xs text-zinc-500">Configure independent sizes per color (e.g. Red has S, M; Blue has M, L, XL)</p>
+                <h2 className="text-sm font-semibold text-zinc-900">Product Variants & Options</h2>
+                <p className="text-xs text-zinc-500">Configure independent sizes per color without mandatory combinations</p>
               </div>
             </div>
 
@@ -907,7 +919,7 @@ export default function AddProductView() {
           {/* If VARIANTS ENABLED */}
           {hasVariants ? (
             <div className="space-y-5">
-              {/* Master Attribute Controls (Add Color & Add Size) */}
+              {/* Master Attribute Controls (NO PREBUILT SIZES OR COLORS FORCED!) */}
               <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Colors List */}
@@ -917,12 +929,12 @@ export default function AddProductView() {
                         <Palette className="h-3.5 w-3.5 text-emerald-600" />
                         <span>Product Colors</span>
                       </span>
-                      <span className="text-[10px] text-zinc-400 font-normal">({colors.length} colors)</span>
+                      <span className="text-[10px] text-zinc-400 font-normal">({colors.length} added)</span>
                     </label>
                     <div className="flex items-center gap-1.5 mb-2">
                       <input
                         type="text"
-                        placeholder="Add new color (e.g. Maroon, Green)..."
+                        placeholder="Type color name (e.g. Red, Blue, Black)..."
                         value={newColorInput}
                         onChange={(e) => setNewColorInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleAddColor(e)}
@@ -943,14 +955,14 @@ export default function AddProductView() {
                     <label className="block text-xs font-semibold text-zinc-800 mb-1.5 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
                         <Layers className="h-3.5 w-3.5 text-emerald-600" />
-                        <span>Available Master Sizes</span>
+                        <span>Product Sizes / Dimensions</span>
                       </span>
-                      <span className="text-[10px] text-zinc-400 font-normal">({sizes.length} sizes)</span>
+                      <span className="text-[10px] text-zinc-400 font-normal">({sizes.length} added)</span>
                     </label>
                     <div className="flex items-center gap-1.5 mb-2">
                       <input
                         type="text"
-                        placeholder="Add size (e.g. XXL, 38, Free Size)..."
+                        placeholder="Type size (e.g. S, M, L, Free Size, 32)..."
                         value={newSizeInput}
                         onChange={(e) => setNewSizeInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleAddSize(e)}
@@ -964,137 +976,173 @@ export default function AddProductView() {
                         Add Size
                       </button>
                     </div>
+
+                    {/* Quick Preset Buttons (Optional Shortcuts) */}
+                    <div className="flex items-center gap-2 pt-0.5 text-[11px] text-zinc-500">
+                      <span>Quick presets:</span>
+                      <button
+                        type="button"
+                        onClick={handleAddCommonSizesPreset}
+                        className="text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        + Apparel (S, M, L, XL, XXL)
+                      </button>
+                      <span>•</span>
+                      <button
+                        type="button"
+                        onClick={handleAddFootwearSizesPreset}
+                        className="text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        + Footwear (6 to 11)
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Per-Color Size Matrix Grid: Click a size pill to toggle for that color! */}
-                <div className="pt-2 border-t border-zinc-200/80">
-                  <div className="text-xs font-semibold text-zinc-800 mb-3 flex items-center justify-between">
-                    <span>Select Available Sizes for Each Color:</span>
-                    <span className="text-[11px] text-zinc-500 font-normal">
-                      Click size badges to toggle availability per color
-                    </span>
+                {colors.length === 0 ? (
+                  <div className="py-6 border-t border-dashed border-zinc-200 text-center text-zinc-400 text-xs">
+                    <p>No colors added yet.</p>
+                    <p className="text-zinc-500 mt-1">Type a color above and click &quot;Add Color&quot; to configure your variants.</p>
                   </div>
+                ) : (
+                  <div className="pt-2 border-t border-zinc-200/80">
+                    <div className="text-xs font-semibold text-zinc-800 mb-3 flex items-center justify-between">
+                      <span>Select Available Sizes for Each Color:</span>
+                      <span className="text-[11px] text-zinc-500 font-normal">
+                        Click size badges to toggle availability per color
+                      </span>
+                    </div>
 
-                  <div className="space-y-2.5">
-                    {colors.map((color) => {
-                      const selectedSizes = colorSizesMap[color] || [];
-                      return (
-                        <div
-                          key={color}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-zinc-200 shadow-2xs"
-                        >
-                          {/* Color Title with count */}
-                          <div className="flex items-center gap-2 min-w-36">
-                            <span className="font-semibold text-xs text-zinc-900 flex items-center gap-1.5">
-                              <span className="h-2.5 w-2.5 rounded-full bg-emerald-600 inline-block" />
-                              <span>{color}</span>
-                            </span>
-                            <span className="rounded bg-zinc-100 px-1.5 py-0.2 text-[10px] font-mono text-zinc-500">
-                              {selectedSizes.length} {selectedSizes.length === 1 ? "size" : "sizes"}
-                            </span>
-                          </div>
+                    <div className="space-y-2.5">
+                      {colors.map((color) => {
+                        const selectedSizes = colorSizesMap[color] || [];
+                        return (
+                          <div
+                            key={color}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-zinc-200 shadow-2xs"
+                          >
+                            {/* Color Title with count */}
+                            <div className="flex items-center gap-2 min-w-36">
+                              <span className="font-semibold text-xs text-zinc-900 flex items-center gap-1.5">
+                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-600 inline-block" />
+                                <span>{color}</span>
+                              </span>
+                              <span className="rounded bg-zinc-100 px-1.5 py-0.2 text-[10px] font-mono text-zinc-500">
+                                {selectedSizes.length} {selectedSizes.length === 1 ? "size" : "sizes"}
+                              </span>
+                            </div>
 
-                          {/* Size Badges / Toggles */}
-                          <div className="flex-1 flex flex-wrap items-center gap-1.5">
-                            {sizes.map((size) => {
-                              const isSelected = selectedSizes.includes(size);
-                              return (
+                            {/* Size Badges / Toggles */}
+                            <div className="flex-1 flex flex-wrap items-center gap-1.5">
+                              {sizes.length === 0 ? (
+                                <span className="text-zinc-400 italic text-xs">
+                                  No sizes added yet. Type a size above to select for {color}.
+                                </span>
+                              ) : (
+                                sizes.map((size) => {
+                                  const isSelected = selectedSizes.includes(size);
+                                  return (
+                                    <button
+                                      key={size}
+                                      type="button"
+                                      onClick={() => handleToggleColorSize(color, size)}
+                                      className={`px-3 py-1 rounded-md text-xs font-medium border transition-all cursor-pointer flex items-center gap-1 ${
+                                        isSelected
+                                          ? "bg-[#107548] text-white border-[#107548] shadow-2xs"
+                                          : "bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900"
+                                      }`}
+                                    >
+                                      {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                                      <span>{size}</span>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            {/* Quick Select All / Clear & Delete Color */}
+                            {sizes.length > 0 && (
+                              <div className="flex items-center gap-1 text-[11px]">
                                 <button
-                                  key={size}
                                   type="button"
-                                  onClick={() => handleToggleColorSize(color, size)}
-                                  className={`px-3 py-1 rounded-md text-xs font-medium border transition-all cursor-pointer flex items-center gap-1 ${
-                                    isSelected
-                                      ? "bg-[#107548] text-white border-[#107548] shadow-2xs"
-                                      : "bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900"
-                                  }`}
+                                  onClick={() => handleSelectAllSizesForColor(color)}
+                                  className="text-zinc-500 hover:text-emerald-700 px-1.5 py-0.5 rounded hover:bg-zinc-100 cursor-pointer"
                                 >
-                                  {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                                  <span>{size}</span>
+                                  All
                                 </button>
-                              );
-                            })}
+                                <span className="text-zinc-300">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleClearAllSizesForColor(color)}
+                                  className="text-zinc-500 hover:text-zinc-800 px-1.5 py-0.5 rounded hover:bg-zinc-100 cursor-pointer"
+                                >
+                                  None
+                                </button>
+                                <span className="text-zinc-300">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveColor(color)}
+                                  className="text-zinc-400 hover:text-rose-600 p-1 cursor-pointer"
+                                  title={`Remove ${color} completely`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            )}
                           </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                          {/* Quick Select All / Clear & Delete Color */}
-                          <div className="flex items-center gap-1 text-[11px]">
-                            <button
-                              type="button"
-                              onClick={() => handleSelectAllSizesForColor(color)}
-                              className="text-zinc-500 hover:text-emerald-700 px-1.5 py-0.5 rounded hover:bg-zinc-100 cursor-pointer"
-                            >
-                              All
-                            </button>
-                            <span className="text-zinc-300">|</span>
-                            <button
-                              type="button"
-                              onClick={() => handleClearAllSizesForColor(color)}
-                              className="text-zinc-500 hover:text-zinc-800 px-1.5 py-0.5 rounded hover:bg-zinc-100 cursor-pointer"
-                            >
-                              None
-                            </button>
-                            <span className="text-zinc-300">|</span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveColor(color)}
-                              className="text-zinc-400 hover:text-rose-600 p-1 cursor-pointer"
-                              title={`Remove ${color} completely`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                {/* Bulk Price Application Bar with Searchable Dropdown */}
+                {variantRows.length > 0 && (
+                  <div className="pt-3 border-t border-zinc-200 flex flex-wrap items-center justify-between gap-3 text-xs bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
+                    <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                      <span>⚡ Quick Set Prices for All Variants:</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="List Price (MRP ₹)"
+                        value={bulkListPrice}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onChange={(e) => setBulkListPrice(e.target.value)}
+                        className="w-32 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-mono"
+                      />
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="Sale Price (₹)"
+                        value={bulkSalePrice}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onChange={(e) => setBulkSalePrice(e.target.value)}
+                        className="w-32 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-mono"
+                      />
+                      <div className="w-36">
+                        <SearchableDropdown
+                          options={GST_OPTIONS}
+                          value={bulkGstRate}
+                          onChange={(val) => setBulkGstRate(val)}
+                          placeholder="Select GST %..."
+                          searchPlaceholder="GST %"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleApplyBulkPrices}
+                        className="rounded-lg bg-[#107548] text-white px-3.5 py-1.5 font-medium hover:bg-[#0d603a] cursor-pointer transition-colors shadow-2xs"
+                      >
+                        Apply to All
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                {/* Bulk Price Application Bar */}
-                <div className="pt-3 border-t border-zinc-200 flex flex-wrap items-center justify-between gap-3 text-xs bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
-                  <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
-                    <span>⚡ Quick Set Prices for All Variants:</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="List Price (MRP ₹)"
-                      value={bulkListPrice}
-                      onChange={(e) => setBulkListPrice(e.target.value)}
-                      className="w-32 rounded border border-zinc-200 bg-white px-2 py-1 text-xs font-mono"
-                    />
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="Sale Price (₹)"
-                      value={bulkSalePrice}
-                      onChange={(e) => setBulkSalePrice(e.target.value)}
-                      className="w-32 rounded border border-zinc-200 bg-white px-2 py-1 text-xs font-mono"
-                    />
-                    <select
-                      value={bulkGstRate}
-                      onChange={(e) => setBulkGstRate(e.target.value)}
-                      className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs cursor-pointer"
-                    >
-                      <option value="0">0% GST</option>
-                      <option value="3">3% GST</option>
-                      <option value="5">5% GST</option>
-                      <option value="12">12% GST</option>
-                      <option value="18">18% GST</option>
-                      <option value="28">28% GST</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleApplyBulkPrices}
-                      className="rounded bg-[#107548] text-white px-3 py-1 font-medium hover:bg-[#0d603a] cursor-pointer"
-                    >
-                      Apply to All
-                    </button>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Variant Rows Table with Barcode (READONLY), Shortcode, Price, GST & Inventory */}
@@ -1133,8 +1181,8 @@ export default function AddProductView() {
                         <th className="px-3 py-2 border-r border-zinc-200/60 w-28">Short Code</th>
                         <th className="px-3 py-2 border-r border-zinc-200/60 w-28">List Price (₹)</th>
                         <th className="px-3 py-2 border-r border-zinc-200/60 w-28">Sale Price (₹)</th>
-                        <th className="px-3 py-2 border-r border-zinc-200/60 w-24">GST %</th>
-                        <th className="px-3 py-2 border-r border-zinc-200/60 w-28">Tax Type</th>
+                        <th className="px-3 py-2 border-r border-zinc-200/60 w-32">GST %</th>
+                        <th className="px-3 py-2 border-r border-zinc-200/60 w-32">Tax Type</th>
                         <th className="px-3 py-2 border-r border-zinc-200/60 w-36">Inventory</th>
                         <th className="px-2 py-2 text-center w-10"></th>
                       </tr>
@@ -1193,7 +1241,9 @@ export default function AddProductView() {
                               type="number"
                               min="0"
                               step="any"
+                              placeholder="0.00"
                               value={row.listPrice}
+                              onWheel={(e) => e.currentTarget.blur()}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setVariantRows((prev) =>
@@ -1212,7 +1262,9 @@ export default function AddProductView() {
                               type="number"
                               min="0"
                               step="any"
+                              placeholder="0.00"
                               value={row.salePrice}
+                              onWheel={(e) => e.currentTarget.blur()}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setVariantRows((prev) =>
@@ -1225,46 +1277,34 @@ export default function AddProductView() {
                             />
                           </td>
 
-                          {/* GST % */}
-                          <td className="px-3 py-2 border-r border-zinc-200/60">
-                            <select
+                          {/* GST % with SearchableDropdown */}
+                          <td className="px-2 py-1.5 border-r border-zinc-200/60">
+                            <SearchableDropdown
+                              options={GST_OPTIONS}
                               value={row.gstRate}
-                              onChange={(e) => {
-                                const val = e.target.value;
+                              placeholder="Select GST..."
+                              onChange={(val) => {
                                 setVariantRows((prev) =>
-                                  prev.map((r) =>
-                                    r.id === row.id ? { ...r, gstRate: val } : r
-                                  )
+                                  prev.map((r) => (r.id === row.id ? { ...r, gstRate: val } : r))
                                 );
                               }}
-                              className="w-full rounded border border-zinc-200 px-1.5 py-1 text-xs bg-white cursor-pointer"
-                            >
-                              <option value="0">0%</option>
-                              <option value="3">3%</option>
-                              <option value="5">5%</option>
-                              <option value="12">12%</option>
-                              <option value="18">18%</option>
-                              <option value="28">28%</option>
-                            </select>
+                            />
                           </td>
 
-                          {/* Tax Type: Inclusive or Exclusive */}
-                          <td className="px-3 py-2 border-r border-zinc-200/60">
-                            <select
+                          {/* Tax Type with SearchableDropdown */}
+                          <td className="px-2 py-1.5 border-r border-zinc-200/60">
+                            <SearchableDropdown
+                              options={TAX_TYPE_OPTIONS}
                               value={row.taxType}
-                              onChange={(e) => {
-                                const val = e.target.value as "inclusive" | "exclusive";
+                              placeholder="Select Tax..."
+                              onChange={(val) => {
                                 setVariantRows((prev) =>
                                   prev.map((r) =>
-                                    r.id === row.id ? { ...r, taxType: val } : r
+                                    r.id === row.id ? { ...r, taxType: val as "inclusive" | "exclusive" | "" } : r
                                   )
                                 );
                               }}
-                              className="w-full rounded border border-zinc-200 px-1 py-1 text-xs bg-white cursor-pointer"
-                            >
-                              <option value="inclusive">Inclusive</option>
-                              <option value="exclusive">Exclusive</option>
-                            </select>
+                            />
                           </td>
 
                           {/* Inventory Allocation */}
@@ -1304,7 +1344,7 @@ export default function AddProductView() {
           ) : (
             /* If SIMPLE PRODUCT: Show Pricing and Inventory sections here */
             <div className="space-y-6 pt-2">
-              {/* Pricing Section */}
+              {/* Pricing Section with Custom Searchable Dropdowns */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-zinc-50/50 p-4 rounded-xl border border-zinc-200">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-zinc-700">
@@ -1318,6 +1358,7 @@ export default function AddProductView() {
                       min="0"
                       placeholder="0.00"
                       value={simpleListPrice}
+                      onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => setSimpleListPrice(e.target.value)}
                       className="w-full rounded-lg border border-zinc-200 bg-white pl-6 pr-3 py-1.5 text-xs text-zinc-900 font-mono focus:border-emerald-500 focus:outline-hidden"
                     />
@@ -1336,42 +1377,39 @@ export default function AddProductView() {
                       min="0"
                       placeholder="0.00"
                       value={simpleSalePrice}
+                      onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => setSimpleSalePrice(e.target.value)}
                       className="w-full rounded-lg border border-zinc-200 bg-white pl-6 pr-3 py-1.5 text-xs text-zinc-900 font-mono focus:border-emerald-500 focus:outline-hidden"
                     />
                   </div>
                 </div>
 
+                {/* Custom Searchable GST Rate Dropdown */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-zinc-700">
                     GST Rate (%)
                   </label>
-                  <select
+                  <SearchableDropdown
+                    options={GST_OPTIONS}
                     value={simpleGstRate}
-                    onChange={(e) => setSimpleGstRate(e.target.value)}
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-800 focus:border-emerald-500 focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="0">0% (Nil)</option>
-                    <option value="3">3%</option>
-                    <option value="5">5%</option>
-                    <option value="12">12%</option>
-                    <option value="18">18% (Standard)</option>
-                    <option value="28">28% (Luxury)</option>
-                  </select>
+                    onChange={(val) => setSimpleGstRate(val)}
+                    placeholder="Select GST rate..."
+                    searchPlaceholder="Search GST rate..."
+                  />
                 </div>
 
+                {/* Custom Searchable Tax Type Dropdown */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-zinc-700">
                     Tax Computation
                   </label>
-                  <select
+                  <SearchableDropdown
+                    options={TAX_TYPE_OPTIONS}
                     value={simpleTaxType}
-                    onChange={(e) => setSimpleTaxType(e.target.value as "inclusive" | "exclusive")}
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-800 focus:border-emerald-500 focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="inclusive">Tax Inclusive (MRP includes GST)</option>
-                    <option value="exclusive">Tax Exclusive (GST added at bill)</option>
-                  </select>
+                    onChange={(val) => setSimpleTaxType(val as "inclusive" | "exclusive")}
+                    placeholder="Select Tax computation..."
+                    searchPlaceholder="Search tax type..."
+                  />
                 </div>
               </div>
 
@@ -1498,13 +1536,24 @@ export default function AddProductView() {
                               <input
                                 type="number"
                                 min="0"
-                                value={currentAllocations[loc.id] || 0}
+                                placeholder="0"
+                                value={currentAllocations[loc.id] !== undefined && currentAllocations[loc.id] !== 0 ? currentAllocations[loc.id] : ""}
+                                onWheel={(e) => e.currentTarget.blur()}
                                 onChange={(e) => {
-                                  const val = parseInt(e.target.value) || 0;
-                                  setCurrentAllocations((prev) => ({
-                                    ...prev,
-                                    [loc.id]: Math.max(0, val),
-                                  }));
+                                  const raw = e.target.value;
+                                  if (raw === "") {
+                                    setCurrentAllocations((prev) => {
+                                      const next = { ...prev };
+                                      delete next[loc.id];
+                                      return next;
+                                    });
+                                  } else {
+                                    const val = parseInt(raw) || 0;
+                                    setCurrentAllocations((prev) => ({
+                                      ...prev,
+                                      [loc.id]: Math.max(0, val),
+                                    }));
+                                  }
                                 }}
                                 className="w-20 rounded border border-zinc-300 px-2 py-1 text-xs font-mono text-right text-zinc-900 focus:border-emerald-500 focus:outline-hidden"
                               />
@@ -1539,13 +1588,24 @@ export default function AddProductView() {
                               <input
                                 type="number"
                                 min="0"
-                                value={currentAllocations[loc.id] || 0}
+                                placeholder="0"
+                                value={currentAllocations[loc.id] !== undefined && currentAllocations[loc.id] !== 0 ? currentAllocations[loc.id] : ""}
+                                onWheel={(e) => e.currentTarget.blur()}
                                 onChange={(e) => {
-                                  const val = parseInt(e.target.value) || 0;
-                                  setCurrentAllocations((prev) => ({
-                                    ...prev,
-                                    [loc.id]: Math.max(0, val),
-                                  }));
+                                  const raw = e.target.value;
+                                  if (raw === "") {
+                                    setCurrentAllocations((prev) => {
+                                      const next = { ...prev };
+                                      delete next[loc.id];
+                                      return next;
+                                    });
+                                  } else {
+                                    const val = parseInt(raw) || 0;
+                                    setCurrentAllocations((prev) => ({
+                                      ...prev,
+                                      [loc.id]: Math.max(0, val),
+                                    }));
+                                  }
                                 }}
                                 className="w-20 rounded border border-zinc-300 px-2 py-1 text-xs font-mono text-right text-zinc-900 focus:border-emerald-500 focus:outline-hidden"
                               />
