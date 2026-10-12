@@ -27,8 +27,10 @@ import {
   ChevronRight, 
   Tag, 
   Image as ImageIcon, 
-  Sliders 
+  Sliders,
+  FileSpreadsheet
 } from "lucide-react";
+import BulkUploadModal from "@/components/BulkUploadModal";
 
 // Inline Barcode Icon
 function BarcodeIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
@@ -90,6 +92,9 @@ export default function ProductsView() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Bulk Upload Modal State
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState<boolean>(false);
 
   // Toast Notification State
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -256,6 +261,16 @@ export default function ProductsView() {
           >
             <RefreshCw className={`h-3.5 w-3.5 text-zinc-500 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
+          </button>
+
+          {/* Bulk Upload Button */}
+          <button
+            onClick={() => setIsBulkUploadOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-50 hover:bg-emerald-100 text-[#107548] px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            title="Import products in bulk from Excel or CSV"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>Bulk Upload</span>
           </button>
 
           {/* Add Product Button redirecting to /products/add */}
@@ -506,6 +521,22 @@ export default function ProductsView() {
           </button>
         </div>
       </div>
+
+      {/* Bulk Upload Excel Modal */}
+      <BulkUploadModal
+        isOpen={isBulkUploadOpen}
+        onClose={() => setIsBulkUploadOpen(false)}
+        onUploadSuccess={(importedCount) => {
+          pageSnapshotsRef.current = {};
+          fetchTotalCount();
+          fetchPage(1);
+          setCurrentPage(1);
+          setToast({
+            type: "success",
+            message: `Successfully imported ${importedCount} products into your catalog!`,
+          });
+        }}
+      />
 
       {/* Floating Supabase Toast */}
       <Toast toast={toast} onClose={() => setToast(null)} />
