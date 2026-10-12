@@ -36,26 +36,16 @@ export default function CustomDateTimePicker({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Parse initial date from value or fallback to today
-  const initialDate = value ? new Date(value) : new Date();
-  const [viewYear, setViewYear] = useState<number>(initialDate.getFullYear());
-  const [viewMonth, setViewMonth] = useState<number>(initialDate.getMonth());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(value ? new Date(value) : null);
+  // Initialize with safe static values during SSR prerender
+  const [viewYear, setViewYear] = useState<number>(2026);
+  const [viewMonth, setViewMonth] = useState<number>(0);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [todayInfo, setTodayInfo] = useState<{ day: number; month: number; year: number } | null>(null);
 
   // Time state (12-hour format) - NO prebuilt numbers
-  const [hours, setHours] = useState<string>(() => {
-    if (!value) return "";
-    const h = new Date(value).getHours();
-    return (h % 12 || 12).toString().padStart(2, "0");
-  });
-  const [minutes, setMinutes] = useState<string>(() => {
-    if (!value) return "";
-    return new Date(value).getMinutes().toString().padStart(2, "0");
-  });
-  const [ampm, setAmpm] = useState<"AM" | "PM">(() => {
-    if (!value) return "AM";
-    return new Date(value).getHours() >= 12 ? "PM" : "AM";
-  });
+  const [hours, setHours] = useState<string>("");
+  const [minutes, setMinutes] = useState<string>("");
+  const [ampm, setAmpm] = useState<"AM" | "PM">("AM");
 
   // Close on outside click
   useEffect(() => {
@@ -73,8 +63,11 @@ export default function CustomDateTimePicker({
     };
   }, [isOpen]);
 
-  // Sync internal state if value prop changes
+  // Sync internal state when client mounts or value prop changes (client-only evaluation)
   useEffect(() => {
+    const t = new Date();
+    setTodayInfo({ day: t.getDate(), month: t.getMonth(), year: t.getFullYear() });
+
     if (value) {
       const d = new Date(value);
       setSelectedDate(d);
@@ -85,9 +78,12 @@ export default function CustomDateTimePicker({
       setMinutes(d.getMinutes().toString().padStart(2, "0"));
       setAmpm(h >= 12 ? "PM" : "AM");
     } else {
+      setViewYear(t.getFullYear());
+      setViewMonth(t.getMonth());
       setSelectedDate(null);
       setHours("");
       setMinutes("");
+      setAmpm("AM");
     }
   }, [value]);
 
@@ -181,11 +177,11 @@ export default function CustomDateTimePicker({
   };
 
   const isToday = (day: number) => {
-    const today = new Date();
+    if (!todayInfo) return false;
     return (
-      today.getDate() === day &&
-      today.getMonth() === viewMonth &&
-      today.getFullYear() === viewYear
+      todayInfo.day === day &&
+      todayInfo.month === viewMonth &&
+      todayInfo.year === viewYear
     );
   };
 
@@ -314,21 +310,22 @@ export default function CustomDateTimePicker({
                 <div className="flex items-center gap-1.5 font-mono text-xs">
                   {/* Hours Input (No Up/Down Buttons, No Prebuilt Number, No Scroll Change) */}
                   <input
-                    type="number"
-                    min={1}
-                    max={12}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={2}
                     placeholder="HH"
                     value={hours}
-                    onWheel={(e) => e.currentTarget.blur()}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "") {
                         setHours("");
                         return;
                       }
-                      const num = parseInt(val);
-                      if (!isNaN(num)) {
-                        setHours(Math.min(12, Math.max(1, num)).toString());
+                      if (/^\d{1,2}$/.test(val)) {
+                        const num = parseInt(val);
+                        if (!isNaN(num)) {
+                          setHours(Math.min(12, Math.max(1, num)).toString());
+                        }
                       }
                     }}
                     className="w-10 rounded-md border border-zinc-200 bg-white py-1 text-center text-xs font-mono font-medium text-zinc-800 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-hidden"
@@ -338,21 +335,22 @@ export default function CustomDateTimePicker({
 
                   {/* Minutes Input (No Up/Down Buttons, No Prebuilt Number, No Scroll Change) */}
                   <input
-                    type="number"
-                    min={0}
-                    max={59}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={2}
                     placeholder="MM"
                     value={minutes}
-                    onWheel={(e) => e.currentTarget.blur()}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "") {
                         setMinutes("");
                         return;
                       }
-                      const num = parseInt(val);
-                      if (!isNaN(num)) {
-                        setMinutes(Math.min(59, Math.max(0, num)).toString());
+                      if (/^\d{1,2}$/.test(val)) {
+                        const num = parseInt(val);
+                        if (!isNaN(num)) {
+                          setMinutes(Math.min(59, Math.max(0, num)).toString().padStart(val.length > 1 ? 2 : 1, "0"));
+                        }
                       }
                     }}
                     className="w-10 rounded-md border border-zinc-200 bg-white py-1 text-center text-xs font-mono font-medium text-zinc-800 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-hidden"

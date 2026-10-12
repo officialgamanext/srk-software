@@ -11,7 +11,6 @@ import {
 import { db } from "@/lib/firebase";
 import Toast, { type ToastMessage } from "@/components/Toast";
 import SearchableDropdown, { type DropdownOption } from "@/components/SearchableDropdown";
-import CustomDateTimePicker from "@/components/CustomDateTimePicker";
 import { compressImageTo60KB } from "@/lib/imageCompressor";
 import { 
   ArrowLeft, 
@@ -129,11 +128,11 @@ export default function AddProductView() {
   const [shortcode, setShortcode] = useState("");
   const [barcode, setBarcode] = useState("");
   const [sku, setSku] = useState("");
-  const [scheduledDateTime, setScheduledDateTime] = useState("");
+  const [isActive, setIsActive] = useState(true);
 
-  // Media state
-  const [uploadedImages, setUploadedImages] = useState<
-    Array<{ url: string; fileId?: string; name: string; sizeKB: number }>
+  // Media state: files chosen locally, uploaded to ImageKit only when clicking Save
+  const [chosenImages, setChosenImages] = useState<
+    Array<{ id: string; file: File; previewUrl: string; name: string; originalSizeKB: number }>
   >([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadProgressMsg, setUploadProgressMsg] = useState("");
@@ -420,67 +419,34 @@ export default function AddProductView() {
     setVariantRows((prev) => prev.filter((r) => r.id !== rowId));
   };
 
-  // Handle Image Upload with Client-Side 60KB Compression + ImageKit
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle local image selection (images are uploaded to ImageKit on click of "Save Product")
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setIsUploadingImage(true);
-    setUploadProgressMsg("Optimizing image to <= 60KB...");
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        setUploadProgressMsg(`Compressing "${file.name}" to 60KB...`);
-
-        const compressed = await compressImageTo60KB(file, 60 * 1024);
-
-        setUploadProgressMsg(
-          `Uploading to ImageKit (${compressed.originalSizeKB}KB ➔ ${compressed.sizeKB}KB)...`
-        );
-
-        const formData = new FormData();
-        formData.append("file", compressed.blob, compressed.fileName);
-        formData.append("fileName", compressed.fileName);
-
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to upload to ImageKit");
-        }
-
-        setUploadedImages((prev) => [
-          ...prev,
-          {
-            url: data.url,
-            fileId: data.fileId,
-            name: data.name,
-            sizeKB: compressed.sizeKB,
-          },
-        ]);
-      }
-
-      setToast({
-        type: "success",
-        message: "Images compressed to <= 60KB and uploaded to ImageKit!",
+    const newItems: Array<{ id: string; file: File; previewUrl: string; name: string; originalSizeKB: number }> = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const previewUrl = URL.createObjectURL(file);
+      newItems.push({
+        id: `img_${Date.now()}_${i}`,
+        file,
+        previewUrl,
+        name: file.name,
+        originalSizeKB: Math.round(file.size / 1024),
       });
-    } catch (err: unknown) {
-      console.error("Upload error:", err);
-      const msg = err instanceof Error ? err.message : "Failed to process image";
-      setToast({ type: "error", message: msg });
-    } finally {
-      setIsUploadingImage(false);
-      setUploadProgressMsg("");
-      e.target.value = "";
     }
+
+    setChosenImages((prev) => [...prev, ...newItems]);
+    e.target.value = "";
   };
 
   const handleRemoveImage = (indexToRemove: number) => {
-    setUploadedImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setChosenImages((prev) => {
+      const item = prev[indexToRemove];
+      if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((_, idx) => idx !== indexToRemove);
+    });
   };
 
   // Open Inventory Allocation Modal
@@ -564,7 +530,44 @@ export default function AddProductView() {
     }
 
     setSavingProduct(true);
+    setIsUploadingImage(true);
+    setUploadProgressMsg("Preparing product...");
+
     try {
+      // 1. Upload chosen images to ImageKit with <= 60KB compression on Save
+      const uploadedMedia: Array<{ url: string; fileId?: string; name: string; sizeKB: number }> = [];
+
+      if (chosenImages.length > 0) {
+        for (let i = 0; i < chosenImages.length; i++) {
+          const item = chosenImages[i];
+          setUploadProgressMsg(`Compressing "${item.name}" to <= 60KB (${i + 1}/${chosenImages.length})...`);
+          const compressed = await compressImageTo60KB(item.file, 60 * 1024);
+
+          setUploadProgressMsg(`Uploading "${item.name}" to ImageKit (${i + 1}/${chosenImages.length})...`);
+          const formData = new FormData();
+          formData.append("file", compressed.blob, compressed.fileName);
+          formData.append("fileName", compressed.fileName);
+
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || "Failed to upload image to ImageKit");
+          }
+
+          uploadedMedia.push({
+            url: data.url,
+            fileId: data.fileId,
+            name: data.name,
+            sizeKB: compressed.sizeKB,
+          });
+        }
+      }
+
+      setUploadProgressMsg("Saving product record to database...");
       const categoryObj = categories.find((c) => c.id === categoryId);
       const createdAt = new Date().toISOString();
 
@@ -576,10 +579,10 @@ export default function AddProductView() {
         shortcode: shortcode.trim(),
         barcode: barcode.trim(),
         sku: sku.trim() || `SKU-${Date.now().toString().slice(-6)}`,
-        scheduledDateTime: scheduledDateTime || createdAt,
-        media: uploadedImages,
+        media: uploadedMedia,
         hasVariants,
-        status: "Active",
+        status: isActive ? "Active" : "Inactive",
+        isActive,
         createdAt,
         updatedAt: createdAt,
       };
@@ -619,20 +622,53 @@ export default function AddProductView() {
 
       await addDoc(collection(db, "products"), productPayload);
 
-      setToast({
-        type: "success",
-        message: `Product "${title.trim()}" saved successfully!`,
+      // Clean up object URLs
+      chosenImages.forEach((img) => {
+        if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);
       });
 
-      setTimeout(() => {
-        router.push("/products");
-      }, 900);
+      // Clear all fields in Add Product
+      setChosenImages([]);
+      setTitle("");
+      setDescription("");
+      setCategoryId("");
+      setShortcode("");
+      setBarcode(generate8DigitBarcode());
+      setSku("");
+      setIsActive(true);
+      setHasVariants(false);
+
+      // Clear Simple Pricing
+      setSimpleListPrice("");
+      setSimpleSalePrice("");
+      setSimpleGstRate("");
+      setSimpleTaxType("");
+      setSimpleInventory([]);
+
+      // Clear Variants
+      setColors([]);
+      setSizes([]);
+      setColorSizesMap({});
+      setVariantRows([]);
+      setNewColorInput("");
+      setNewSizeInput("");
+      setBulkListPrice("");
+      setBulkSalePrice("");
+      setBulkGstRate("");
+      setCurrentAllocations({});
+
+      setToast({
+        type: "success",
+        message: `Product "${title.trim()}" saved successfully! All fields cleared.`,
+      });
     } catch (err: unknown) {
       console.error("Error creating product:", err);
       const msg = err instanceof Error ? err.message : "Failed to create product";
       setToast({ type: "error", message: msg });
     } finally {
       setSavingProduct(false);
+      setIsUploadingImage(false);
+      setUploadProgressMsg("");
     }
   };
 
@@ -666,7 +702,29 @@ export default function AddProductView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Top Active / Inactive Toggle Switch */}
+          <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50/80 px-3 py-1">
+            <span className="text-[11px] text-zinc-500 font-medium">Product Status:</span>
+            <span className={`text-xs font-semibold ${isActive ? "text-emerald-700" : "text-zinc-500"}`}>
+              {isActive ? "Active" : "Inactive"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsActive(!isActive)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                isActive ? "bg-[#107548]" : "bg-zinc-300"
+              }`}
+              title={`Switch to ${isActive ? "Inactive" : "Active"}`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                  isActive ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
           <Link
             href="/products"
             className="rounded-lg border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors cursor-pointer"
@@ -693,9 +751,19 @@ export default function AddProductView() {
       <div className="w-full px-6 py-5 space-y-5">
         {/* 1. General Product Details */}
         <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs">
-          <div className="flex items-center gap-2 border-b border-zinc-100 pb-3 mb-4">
-            <Tag className="h-4 w-4 text-emerald-600" />
-            <h2 className="text-sm font-semibold text-zinc-900">General Information</h2>
+          <div className="flex items-center justify-between border-b border-zinc-100 pb-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-emerald-600" />
+              <h2 className="text-sm font-semibold text-zinc-900">General Information</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-zinc-100 text-zinc-600 border border-zinc-200"
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-600 animate-pulse" : "bg-zinc-400"}`} />
+                {isActive ? "Status: Active" : "Status: Inactive"}
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -792,16 +860,17 @@ export default function AddProductView() {
               />
             </div>
 
-            {/* Custom Date & Time Picker */}
+            {/* SKU ID */}
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-zinc-700">
-                Launch / Availability Date & Time
+                SKU ID
               </label>
-              <CustomDateTimePicker
-                value={scheduledDateTime}
-                onChange={(val) => setScheduledDateTime(val)}
-                placeholder="Pick calendar date & time..."
-                includeTime={true}
+              <input
+                type="text"
+                placeholder="e.g. SKU-100234..."
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 font-mono focus:border-emerald-500 focus:outline-hidden"
               />
             </div>
           </div>
@@ -849,37 +918,47 @@ export default function AddProductView() {
             </div>
           )}
 
-          {/* Uploaded Images Gallery */}
-          {uploadedImages.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-              {uploadedImages.map((img, idx) => (
-                <div
-                  key={idx}
-                  className="group relative rounded-lg border border-zinc-200 overflow-hidden bg-zinc-100 shadow-2xs"
-                >
-                  <img
-                    src={img.url}
-                    alt={`Product media ${idx + 1}`}
-                    className="h-28 w-full object-cover"
-                  />
-                  <div className="absolute top-1 left-1 bg-black/70 backdrop-blur-xs text-[9px] font-mono font-medium text-white px-1.5 py-0.5 rounded">
-                    {img.sizeKB} KB
-                  </div>
-                  {idx === 0 && (
-                    <div className="absolute bottom-1 left-1 bg-emerald-600 text-[9px] font-semibold text-white px-1.5 py-0.2 rounded">
-                      Primary
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveImage(idx)}
-                    className="absolute top-1 right-1 h-6 w-6 rounded-md bg-white/90 text-rose-600 hover:bg-rose-50 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
-                    title="Remove Image"
+          {/* Chosen Images Gallery (Waiting for Save) */}
+          {chosenImages.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-zinc-700">
+                  Selected Images ({chosenImages.length})
+                </span>
+                <span className="text-[11px] text-zinc-500 font-mono">
+                  Will be compressed &le; 60KB and uploaded on Save Product
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {chosenImages.map((img, idx) => (
+                  <div
+                    key={img.id || idx}
+                    className="group relative rounded-lg border border-zinc-200 overflow-hidden bg-zinc-100 shadow-2xs"
                   >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+                    <img
+                      src={img.previewUrl}
+                      alt={img.name}
+                      className="h-28 w-full object-cover"
+                    />
+                    <div className="absolute top-1 left-1 bg-black/70 backdrop-blur-xs text-[9px] font-mono font-medium text-white px-1.5 py-0.5 rounded">
+                      {img.originalSizeKB} KB
+                    </div>
+                    {idx === 0 && (
+                      <div className="absolute bottom-1 left-1 bg-emerald-600 text-[9px] font-semibold text-white px-1.5 py-0.5 rounded">
+                        Primary
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(idx)}
+                      className="absolute top-1 right-1 h-6 w-6 rounded-md bg-white/90 text-rose-600 hover:bg-rose-50 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
+                      title="Remove Image"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1105,24 +1184,26 @@ export default function AddProductView() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <input
-                        type="number"
-                        step="any"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="List Price (MRP ₹)"
                         value={bulkListPrice}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onChange={(e) => setBulkListPrice(e.target.value)}
-                        className="w-32 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-mono"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "" || /^\d*\.?\d*$/.test(val)) setBulkListPrice(val);
+                        }}
+                        className="w-32 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-mono focus:border-emerald-500 focus:outline-hidden"
                       />
                       <input
-                        type="number"
-                        step="any"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="Sale Price (₹)"
                         value={bulkSalePrice}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onChange={(e) => setBulkSalePrice(e.target.value)}
-                        className="w-32 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-mono"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "" || /^\d*\.?\d*$/.test(val)) setBulkSalePrice(val);
+                        }}
+                        className="w-32 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-mono focus:border-emerald-500 focus:outline-hidden"
                       />
                       <div className="w-36">
                         <SearchableDropdown
@@ -1238,42 +1319,42 @@ export default function AddProductView() {
                           {/* List Price */}
                           <td className="px-3 py-2 border-r border-zinc-200/60">
                             <input
-                              type="number"
-                              min="0"
-                              step="any"
+                              type="text"
+                              inputMode="decimal"
                               placeholder="0.00"
                               value={row.listPrice}
-                              onWheel={(e) => e.currentTarget.blur()}
                               onChange={(e) => {
                                 const val = e.target.value;
-                                setVariantRows((prev) =>
-                                  prev.map((r) =>
-                                    r.id === row.id ? { ...r, listPrice: val } : r
-                                  )
-                                );
+                                if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                                  setVariantRows((prev) =>
+                                    prev.map((r) =>
+                                      r.id === row.id ? { ...r, listPrice: val } : r
+                                    )
+                                  );
+                                }
                               }}
-                              className="w-full rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-900 font-mono"
+                              className="w-full rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-900 font-mono focus:border-emerald-500 focus:outline-hidden"
                             />
                           </td>
 
                           {/* Sale Price */}
                           <td className="px-3 py-2 border-r border-zinc-200/60">
                             <input
-                              type="number"
-                              min="0"
-                              step="any"
+                              type="text"
+                              inputMode="decimal"
                               placeholder="0.00"
                               value={row.salePrice}
-                              onWheel={(e) => e.currentTarget.blur()}
                               onChange={(e) => {
                                 const val = e.target.value;
-                                setVariantRows((prev) =>
-                                  prev.map((r) =>
-                                    r.id === row.id ? { ...r, salePrice: val } : r
-                                  )
-                                );
+                                if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                                  setVariantRows((prev) =>
+                                    prev.map((r) =>
+                                      r.id === row.id ? { ...r, salePrice: val } : r
+                                    )
+                                  );
+                                }
                               }}
-                              className="w-full rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-900 font-mono"
+                              className="w-full rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-900 font-mono focus:border-emerald-500 focus:outline-hidden"
                             />
                           </td>
 
@@ -1353,13 +1434,14 @@ export default function AddProductView() {
                   <div className="relative">
                     <span className="absolute left-2.5 top-2 text-xs text-zinc-400">₹</span>
                     <input
-                      type="number"
-                      step="any"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.00"
                       value={simpleListPrice}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      onChange={(e) => setSimpleListPrice(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "" || /^\d*\.?\d*$/.test(val)) setSimpleListPrice(val);
+                      }}
                       className="w-full rounded-lg border border-zinc-200 bg-white pl-6 pr-3 py-1.5 text-xs text-zinc-900 font-mono focus:border-emerald-500 focus:outline-hidden"
                     />
                   </div>
@@ -1372,13 +1454,14 @@ export default function AddProductView() {
                   <div className="relative">
                     <span className="absolute left-2.5 top-2 text-xs text-zinc-400">₹</span>
                     <input
-                      type="number"
-                      step="any"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.00"
                       value={simpleSalePrice}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      onChange={(e) => setSimpleSalePrice(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "" || /^\d*\.?\d*$/.test(val)) setSimpleSalePrice(val);
+                      }}
                       className="w-full rounded-lg border border-zinc-200 bg-white pl-6 pr-3 py-1.5 text-xs text-zinc-900 font-mono focus:border-emerald-500 focus:outline-hidden"
                     />
                   </div>
@@ -1534,11 +1617,10 @@ export default function AddProductView() {
                             <div className="flex items-center gap-2">
                               <span className="text-[11px] text-zinc-400">Qty:</span>
                               <input
-                                type="number"
-                                min="0"
+                                type="text"
+                                inputMode="numeric"
                                 placeholder="0"
                                 value={currentAllocations[loc.id] !== undefined && currentAllocations[loc.id] !== 0 ? currentAllocations[loc.id] : ""}
-                                onWheel={(e) => e.currentTarget.blur()}
                                 onChange={(e) => {
                                   const raw = e.target.value;
                                   if (raw === "") {
@@ -1547,7 +1629,7 @@ export default function AddProductView() {
                                       delete next[loc.id];
                                       return next;
                                     });
-                                  } else {
+                                  } else if (/^\d*$/.test(raw)) {
                                     const val = parseInt(raw) || 0;
                                     setCurrentAllocations((prev) => ({
                                       ...prev,
@@ -1586,11 +1668,10 @@ export default function AddProductView() {
                             <div className="flex items-center gap-2">
                               <span className="text-[11px] text-zinc-400">Qty:</span>
                               <input
-                                type="number"
-                                min="0"
+                                type="text"
+                                inputMode="numeric"
                                 placeholder="0"
                                 value={currentAllocations[loc.id] !== undefined && currentAllocations[loc.id] !== 0 ? currentAllocations[loc.id] : ""}
-                                onWheel={(e) => e.currentTarget.blur()}
                                 onChange={(e) => {
                                   const raw = e.target.value;
                                   if (raw === "") {
@@ -1599,7 +1680,7 @@ export default function AddProductView() {
                                       delete next[loc.id];
                                       return next;
                                     });
-                                  } else {
+                                  } else if (/^\d*$/.test(raw)) {
                                     const val = parseInt(raw) || 0;
                                     setCurrentAllocations((prev) => ({
                                       ...prev,

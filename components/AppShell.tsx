@@ -15,15 +15,17 @@ export default function AppShell({ children }: AppShellProps) {
 
   // Prevent mouse wheel from inadvertently changing values on number inputs
   useEffect(() => {
-    const handleWheel = () => {
+    const handleWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null;
       if (
-        document.activeElement instanceof HTMLInputElement &&
-        document.activeElement.type === "number"
+        (target instanceof HTMLInputElement && target.type === "number") ||
+        (document.activeElement instanceof HTMLInputElement && document.activeElement.type === "number")
       ) {
-        document.activeElement.blur();
+        e.preventDefault();
+        (document.activeElement as HTMLElement)?.blur();
       }
     };
-    window.addEventListener("wheel", handleWheel, { passive: true });
+    window.addEventListener("wheel", handleWheel, { passive: false });
     return () => {
       window.removeEventListener("wheel", handleWheel);
     };
