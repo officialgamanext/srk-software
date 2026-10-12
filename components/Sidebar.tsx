@@ -17,6 +17,7 @@ import {
   Receipt, 
   Users, 
   Warehouse, 
+  Store,
   BarChart3, 
   Settings, 
   Sparkles, 
@@ -30,15 +31,25 @@ import {
 export default function Sidebar() {
   const pathname = usePathname();
   const [productManagerOpen, setProductManagerOpen] = useState(true);
+  const [productCount, setProductCount] = useState<number | null>(null);
   const [categoryCount, setCategoryCount] = useState<number | null>(null);
   const [variantCount, setVariantCount] = useState<number | null>(null);
+  const [storeCount, setStoreCount] = useState<number | null>(null);
+  const [warehouseCount, setWarehouseCount] = useState<number | null>(null);
 
-  // Subscribe to category & variant count updates from Firestore
+  // Subscribe to count updates from Firestore
   useEffect(() => {
+    let unsubProd: () => void = () => {};
     let unsubCat: () => void = () => {};
     let unsubVar: () => void = () => {};
+    let unsubStores: () => void = () => {};
+    let unsubWarehouses: () => void = () => {};
 
     try {
+      unsubProd = onSnapshot(collection(db, "products"), (snap) => {
+        setProductCount(snap.size);
+      }, (err) => console.warn("Product listener notice:", err));
+
       unsubCat = onSnapshot(collection(db, "categories"), (snap) => {
         setCategoryCount(snap.size);
       }, (err) => console.warn("Category listener notice:", err));
@@ -46,13 +57,24 @@ export default function Sidebar() {
       unsubVar = onSnapshot(collection(db, "variants"), (snap) => {
         setVariantCount(snap.size);
       }, (err) => console.warn("Variant listener notice:", err));
+
+      unsubStores = onSnapshot(collection(db, "stores"), (snap) => {
+        setStoreCount(snap.size);
+      }, (err) => console.warn("Store listener notice:", err));
+
+      unsubWarehouses = onSnapshot(collection(db, "warehouses"), (snap) => {
+        setWarehouseCount(snap.size);
+      }, (err) => console.warn("Warehouse listener notice:", err));
     } catch (e) {
       console.warn("Firestore listeners error:", e);
     }
 
     return () => {
+      unsubProd();
       unsubCat();
       unsubVar();
+      unsubStores();
+      unsubWarehouses();
     };
   }, []);
 
@@ -127,7 +149,9 @@ export default function Sidebar() {
                   <Boxes className={`h-3.5 w-3.5 shrink-0 ${isActive("/products") ? "text-zinc-900" : "text-zinc-400"}`} />
                   <span>Products</span>
                 </div>
-                <span className="text-[10px] text-zinc-400 font-mono">1,248</span>
+                <span className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200">
+                  {productCount !== null ? productCount : "..."}
+                </span>
               </Link>
 
               {/* Categories Sub-menu */}
@@ -172,8 +196,44 @@ export default function Sidebar() {
         {/* Section Divider */}
         <div className="my-2 border-t border-zinc-200/80" />
 
-        {/* Retail Operations */}
+        {/* Retail Operations & Locations */}
         <div className="space-y-0.5">
+          {/* Stores */}
+          <Link
+            href="/stores"
+            className={`flex items-center justify-between rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-colors ${
+              isActive("/stores")
+                ? "bg-zinc-100 text-zinc-900 font-semibold"
+                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Store className="h-4 w-4 text-emerald-600" />
+              <span>Stores</span>
+            </div>
+            <span className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200">
+              {storeCount !== null ? storeCount : "..."}
+            </span>
+          </Link>
+
+          {/* Warehouses */}
+          <Link
+            href="/warehouses"
+            className={`flex items-center justify-between rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-colors ${
+              isActive("/warehouses")
+                ? "bg-zinc-100 text-zinc-900 font-semibold"
+                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Warehouse className="h-4 w-4 text-zinc-600" />
+              <span>Warehouses</span>
+            </div>
+            <span className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200">
+              {warehouseCount !== null ? warehouseCount : "..."}
+            </span>
+          </Link>
+
           <Link
             href="/pos"
             className={`flex items-center justify-between rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-colors ${
