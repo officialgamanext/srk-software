@@ -17,9 +17,11 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Toast, { type ToastMessage } from "@/components/Toast";
+import CustomerBulkUploadModal from "@/components/CustomerBulkUploadModal";
 import { 
   Users, 
-  UserPlus, 
+  UserPlus,
+  Plus, 
   Search, 
   Trash2, 
   Edit3, 
@@ -29,22 +31,14 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Phone, 
-  Mail, 
   MapPin, 
   CreditCard, 
   Calendar, 
   Building2, 
-  ShieldAlert, 
-  DollarSign, 
-  Percent, 
-  FileText, 
+  Tag, 
+  FileSpreadsheet, 
   Sparkles, 
   AlertCircle,
-  Eye,
-  Filter,
-  CheckCircle2,
-  XCircle,
-  ExternalLink,
   Info
 } from "lucide-react";
 
@@ -238,14 +232,13 @@ export default function CustomersView() {
 
   // Full Screen Modal state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState<boolean>(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Omit<CustomerItem, "id">>(getDefaultFormData());
   const [saving, setSaving] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>("");
 
-  // Customer Detail Drawer state
-  const [viewingCustomer, setViewingCustomer] = useState<CustomerItem | null>(null);
 
   // Pagination Cursors stored in ref
   const pageSnapshotsRef = useRef<{ [page: number]: DocumentSnapshot }>({});
@@ -547,7 +540,6 @@ export default function CustomersView() {
       await deleteDoc(doc(db, "customers", id));
       setCustomers((prev) => prev.filter((c) => c.id !== id));
       setTotalCount((prev) => Math.max(0, prev - 1));
-      if (viewingCustomer?.id === id) setViewingCustomer(null);
       setToast({ type: "success", message: `Customer "${name}" deleted successfully` });
     } catch (err: unknown) {
       console.error("Error deleting customer:", err);
@@ -577,18 +569,13 @@ export default function CustomersView() {
     return true;
   });
 
-  // Calculate quick summary metrics
-  const activeCount = customers.filter((c) => !c.inactive).length;
-  const creditBlockedCount = customers.filter((c) => c.stopCredit).length;
-  const totalOpBalance = customers.reduce((sum, c) => sum + (c.opCreditBalance || 0), 0);
-
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-3rem)] overflow-hidden bg-white select-none">
-      {/* Top Header Bar */}
+      {/* Top Header Bar matching ProductsView */}
       <div className="border-b border-zinc-200 bg-white px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-            <span>Retail Operations</span>
+            <span>Customer Manager</span>
             <span className="text-zinc-300">/</span>
             <span className="font-semibold text-zinc-800">Customers</span>
             <span className="rounded border border-emerald-500/30 bg-emerald-50 px-1.5 py-0.2 text-[10px] font-mono font-medium text-emerald-700">
@@ -596,24 +583,24 @@ export default function CustomersView() {
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-lg font-bold text-zinc-900 tracking-tight">Customer Directory & CRM</h1>
-            <span className="rounded-full bg-zinc-100 border border-zinc-200 px-2.5 py-0.5 text-[11px] font-mono font-semibold text-zinc-700">
+            <h1 className="text-lg font-bold text-zinc-900 tracking-tight">Customers Directory</h1>
+            <span className="rounded-full bg-zinc-100 border border-zinc-200 px-2 py-0.5 text-[11px] font-mono font-semibold text-zinc-700">
               {totalCount} {totalCount === 1 ? "customer" : "customers"}
             </span>
           </div>
           <p className="text-xs text-zinc-500 mt-0.5">
-            Member accounts, loyalty card validity, credit limits, khata balances, and promotional preferences
+            Central repository for member accounts, loyalty card validity, credit limits, khata balances, and promotional preferences
           </p>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons matching ProductsView */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
               pageSnapshotsRef.current = {};
               fetchTotalCount();
               fetchPage(currentPage);
-              setToast({ type: "info", message: "Customer directory refreshed from server" });
+              setToast({ type: "info", message: "Refreshed customers from server" });
             }}
             title="Refresh from Firebase"
             className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 shadow-2xs transition-colors cursor-pointer"
@@ -622,305 +609,255 @@ export default function CustomersView() {
             <span className="hidden sm:inline">Refresh</span>
           </button>
 
+          {/* Bulk Upload Button matching ProductsView */}
+          <button
+            onClick={() => setIsBulkModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-50 hover:bg-emerald-100 text-[#107548] px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            title="Import customers in bulk from Excel or CSV"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>Bulk Upload</span>
+          </button>
+
+          {/* Add Customer Button matching ProductsView */}
           <button
             onClick={handleOpenAddModal}
-            className="flex items-center gap-1.5 rounded-lg bg-[#107548] px-4 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-[#0d603a] transition-all cursor-pointer"
+            className="flex items-center gap-1.5 rounded-lg bg-[#107548] hover:bg-[#0e633d] px-3.5 py-1.5 text-xs font-medium text-white shadow-xs transition-colors cursor-pointer"
           >
-            <UserPlus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             <span>Add Customer</span>
           </button>
         </div>
       </div>
 
-      {/* KPI Stats Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-2.5 bg-zinc-50/80 border-b border-zinc-200 text-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded bg-emerald-100/70 text-emerald-700">
-            <Users className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 font-medium">Total Registered</div>
-            <div className="text-xs font-bold text-zinc-900 font-mono">{totalCount}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded bg-blue-100/70 text-blue-700">
-            <CheckCircle2 className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 font-medium">Active (Loaded)</div>
-            <div className="text-xs font-bold text-zinc-900 font-mono">{activeCount}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded bg-rose-100/70 text-rose-700">
-            <ShieldAlert className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 font-medium">Credit Stopped</div>
-            <div className="text-xs font-bold text-rose-700 font-mono">{creditBlockedCount}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded bg-amber-100/70 text-amber-700">
-            <DollarSign className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 font-medium">Op Credit Total</div>
-            <div className="text-xs font-bold text-zinc-900 font-mono">₹{totalOpBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter & Search Bar */}
-      <div className="px-6 py-2.5 border-b border-zinc-200/80 bg-white flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-1 max-w-md">
+      {/* Table Toolbar matching ProductsView */}
+      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 bg-white text-xs">
+        <div className="flex items-center gap-2 flex-1 max-w-sm">
           <div className="relative w-full">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-400" />
             <input
               type="text"
-              placeholder="Search by code, customer name, mobile, city, card..."
+              placeholder="Search by customer name, code, mobile, city, or card..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-zinc-200 bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-md border border-zinc-200 bg-zinc-50/70 pl-8 pr-3 py-1.5 text-xs text-zinc-800 focus:border-emerald-500 focus:bg-white focus:outline-hidden"
             />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
           </div>
         </div>
 
-        {/* Status Filters */}
-        <div className="flex items-center gap-1 text-xs">
-          <span className="text-[11px] text-zinc-400 mr-1 flex items-center gap-1">
-            <Filter className="h-3 w-3" /> Status:
-          </span>
-          {(["all", "active", "inactive", "credit_blocked"] as const).map((filterKey) => (
-            <button
-              key={filterKey}
-              onClick={() => setFilterStatus(filterKey)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                filterStatus === filterKey
-                  ? "bg-zinc-900 text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-              }`}
-            >
-              {filterKey === "all" && "All"}
-              {filterKey === "active" && "Active"}
-              {filterKey === "inactive" && "Inactive"}
-              {filterKey === "credit_blocked" && "Credit Blocked"}
-            </button>
-          ))}
+        <div className="flex items-center gap-3 text-xs text-zinc-500 font-mono">
+          <span>Limit: <strong className="text-zinc-800 font-semibold">{PAGE_SIZE} / page</strong></span>
+          <span className="text-zinc-300">|</span>
+          <span>Total Count: <strong className="text-emerald-700 font-semibold">{totalCount}</strong></span>
         </div>
       </div>
 
-      {/* Customers Table List */}
+      {/* Customers Data Table matching ProductsView */}
       <div className="flex-1 overflow-auto bg-white">
-        {loading && customers.length === 0 ? (
-          <div className="flex h-64 flex-col items-center justify-center gap-2 text-zinc-400">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-64 gap-3 text-zinc-400">
             <RefreshCw className="h-6 w-6 animate-spin text-emerald-600" />
-            <span className="text-xs">Loading customers from server (limit 24)...</span>
+            <span className="text-xs">Loading customers from Firestore (Limit 24)...</span>
           </div>
         ) : displayedCustomers.length === 0 ? (
-          <div className="flex h-64 flex-col items-center justify-center gap-3 text-center px-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400">
+          <div className="flex flex-col items-center justify-center h-72 text-center p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400 mb-3 border border-zinc-200">
               <Users className="h-6 w-6" />
             </div>
-            <div>
-              <p className="text-sm font-semibold text-zinc-800">
-                {searchQuery ? "No matching customers found" : "No customers registered yet"}
-              </p>
-              <p className="text-xs text-zinc-500 mt-1 max-w-sm">
-                {searchQuery 
-                  ? "Try adjusting your search terms or filter to find the customer"
-                  : "Click 'Add Customer' to create your first customer profile with loyalty card, credit terms, and GST details."}
-              </p>
-            </div>
+            <h3 className="text-sm font-semibold text-zinc-800">No customers found</h3>
+            <p className="text-xs text-zinc-500 max-w-xs mt-1">
+              {searchQuery ? "No customers match your search filter." : "Click 'Add Customer' above to create your first customer profile."}
+            </p>
             {!searchQuery && (
               <button
                 onClick={handleOpenAddModal}
-                className="mt-1 flex items-center gap-1.5 rounded-lg bg-[#107548] px-3.5 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-[#0d603a] cursor-pointer"
+                className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#107548] px-3.5 py-1.5 text-xs font-medium text-white hover:bg-[#0e633d] cursor-pointer"
               >
-                <UserPlus className="h-3.5 w-3.5" />
-                <span>Add Customer</span>
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add First Customer</span>
               </button>
             )}
           </div>
         ) : (
-          <table className="w-full border-collapse text-left text-xs">
-            <thead className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="sticky top-0 bg-zinc-50/95 backdrop-blur-xs border-b border-zinc-200 text-zinc-500 font-medium">
               <tr>
-                <th className="py-2.5 px-4 border-r border-zinc-200/60 w-12 text-center">#</th>
-                <th className="py-2.5 px-4 border-r border-zinc-200/60">Code</th>
-                <th className="py-2.5 px-4 border-r border-zinc-200/60">Customer Name</th>
-                <th className="py-2.5 px-4 border-r border-zinc-200/60">Mobile & City</th>
-                <th className="py-2.5 px-4 border-r border-zinc-200/60">Card & Branch</th>
-                <th className="py-2.5 px-4 border-r border-zinc-200/60">Credit / Balance</th>
-                <th className="py-2.5 px-4 border-r border-zinc-200/60 text-center">Status</th>
-                <th className="py-2.5 px-4 text-right">Actions</th>
+                <th className="w-10 px-3 py-2 text-center border-r border-zinc-200/60">
+                  <input type="checkbox" className="rounded border-zinc-300 text-emerald-600 cursor-pointer" />
+                </th>
+                <th className="w-12 px-2 py-2 text-center border-r border-zinc-200/60">
+                  media
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] border-r border-zinc-200/60 uppercase tracking-wider text-zinc-600">
+                  customer_name <span className="text-[10px] text-zinc-400 font-sans lowercase">string</span>
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] border-r border-zinc-200/60 uppercase tracking-wider text-zinc-600">
+                  mobile <span className="text-[10px] text-zinc-400 font-sans lowercase">phone</span>
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] border-r border-zinc-200/60 uppercase tracking-wider text-zinc-600">
+                  city <span className="text-[10px] text-zinc-400 font-sans lowercase">text</span>
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] border-r border-zinc-200/60 uppercase tracking-wider text-zinc-600">
+                  branch <span className="text-[10px] text-zinc-400 font-sans lowercase">text</span>
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] border-r border-zinc-200/60 uppercase tracking-wider text-zinc-600">
+                  credit_balance <span className="text-[10px] text-zinc-400 font-sans lowercase">inr</span>
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] border-r border-zinc-200/60 uppercase tracking-wider text-zinc-600">
+                  credit_limit <span className="text-[10px] text-zinc-400 font-sans lowercase">inr</span>
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] border-r border-zinc-200/60 uppercase tracking-wider text-zinc-600">
+                  group <span className="text-[10px] text-zinc-400 font-sans lowercase">text</span>
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] border-r border-zinc-200/60 uppercase tracking-wider text-zinc-600">
+                  status <span className="text-[10px] text-zinc-400 font-sans lowercase">text</span>
+                </th>
+                <th className="px-3.5 py-2 font-mono text-[11px] text-right uppercase tracking-wider text-zinc-600">
+                  actions
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-200/70 font-mono">
-              {displayedCustomers.map((c, index) => {
-                const serialNum = (currentPage - 1) * PAGE_SIZE + index + 1;
-                return (
-                  <tr 
-                    key={c.id} 
-                    className="hover:bg-zinc-50/80 transition-colors group cursor-default"
-                  >
-                    {/* Index */}
-                    <td className="px-4 py-2.5 border-r border-zinc-200/60 text-center text-zinc-400 text-[11px]">
-                      {serialNum}
-                    </td>
+            <tbody className="divide-y divide-zinc-100 font-mono text-[11px] text-zinc-700">
+              {displayedCustomers.map((c) => (
+                <tr key={c.id} className="hover:bg-zinc-50/80 transition-colors">
+                  <td className="px-3 py-2 text-center border-r border-zinc-200/60">
+                    <input type="checkbox" className="rounded border-zinc-300 text-emerald-600 cursor-pointer" />
+                  </td>
 
-                    {/* Customer Code */}
-                    <td className="px-4 py-2.5 border-r border-zinc-200/60">
-                      <span className="font-semibold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200 text-[11px]">
-                        {c.customerCode}
-                      </span>
-                    </td>
+                  {/* Card Avatar / Icon Slot */}
+                  <td className="px-2 py-1.5 border-r border-zinc-200/60 text-center">
+                    <div className="h-8 w-8 rounded bg-zinc-100 border border-zinc-200 mx-auto flex items-center justify-center text-zinc-600 font-bold font-sans text-xs uppercase shadow-2xs">
+                      {c.customerName ? c.customerName.charAt(0) : <Users className="h-4 w-4 text-zinc-400" />}
+                    </div>
+                  </td>
 
-                    {/* Customer Name */}
-                    <td className="px-4 py-2.5 border-r border-zinc-200/60 font-sans">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200/60 uppercase">
-                          {c.customerName.charAt(0) || "C"}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-zinc-900 text-xs flex items-center gap-1.5">
-                            {c.customerName}
-                            {c.stopCredit && (
-                              <span className="rounded bg-rose-50 text-rose-700 border border-rose-200 px-1 text-[9px] font-semibold">
-                                STOP CREDIT
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-zinc-500 flex items-center gap-1">
-                            <span>{c.group || "General Retail"}</span>
-                            <span>•</span>
-                            <span className="text-zinc-400">{c.classification || "Regular"}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Mobile & City */}
-                    <td className="px-4 py-2.5 border-r border-zinc-200/60 font-sans">
-                      <div className="flex flex-col text-xs text-zinc-700">
-                        <span className="font-mono flex items-center gap-1">
-                          <Phone className="h-3 w-3 text-zinc-400" />
-                          {c.mobile || "—"}
-                        </span>
-                        <span className="text-[11px] text-zinc-500 flex items-center gap-1 mt-0.5">
-                          <MapPin className="h-3 w-3 text-zinc-400" />
-                          {c.city}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Card & Branch */}
-                    <td className="px-4 py-2.5 border-r border-zinc-200/60 font-sans">
-                      <div className="flex flex-col text-xs">
-                        <span className="font-mono text-zinc-800 flex items-center gap-1">
-                          <CreditCard className="h-3 w-3 text-zinc-400" />
-                          {c.cardNo ? c.cardNo : <span className="text-zinc-400 italic">No Card</span>}
-                        </span>
-                        <span className="text-[10px] text-zinc-500 truncate max-w-[140px] flex items-center gap-1 mt-0.5">
-                          <Building2 className="h-3 w-3 text-zinc-400" />
-                          {c.branch}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Credit / Balance */}
-                    <td className="px-4 py-2.5 border-r border-zinc-200/60 font-mono">
-                      <div className="flex flex-col text-xs">
-                        <span className="text-zinc-900 font-semibold">
-                          ₹{(c.opCreditBalance || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-[10px] text-zinc-500 font-sans">
-                          Limit: ₹{(c.creditLimit || 0).toLocaleString("en-IN")} ({c.creditDays || 0}d)
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-4 py-2.5 border-r border-zinc-200/60 text-center font-sans">
-                      {c.inactive ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">
-                          Inactive
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          Active
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-2.5 text-right font-sans">
-                      <div className="flex items-center justify-end gap-1">
+                  {/* Customer Name, Code & Card */}
+                  <td className="px-3.5 py-2 border-r border-zinc-200/60 font-sans font-medium text-zinc-900">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => setViewingCustomer(c)}
-                          className="rounded p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer"
-                          title="View customer profile"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                        <button
+                          type="button"
                           onClick={() => handleOpenEditModal(c)}
-                          className="rounded p-1 text-zinc-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
-                          title="Edit customer"
+                          className="font-semibold text-zinc-900 hover:text-emerald-700 transition-colors text-left cursor-pointer"
                         >
-                          <Edit3 className="h-3.5 w-3.5" />
+                          {c.customerName}
                         </button>
-                        <button
-                          onClick={() => handleDeleteCustomer(c.id, c.customerName)}
-                          className="rounded p-1 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Delete customer"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {c.stopCredit && (
+                          <span className="rounded bg-rose-50 text-rose-700 border border-rose-200 px-1 text-[9px] font-semibold">
+                            STOP CREDIT
+                          </span>
+                        )}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-[10px] font-mono">
+                        {c.customerCode && (
+                          <span className="rounded bg-zinc-100 px-1.5 py-0.2 border border-zinc-200 text-zinc-700 font-semibold">
+                            {c.customerCode}
+                          </span>
+                        )}
+                        {c.cardNo && (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 rounded tracking-wider">
+                            <CreditCard className="h-2.5 w-2.5" />
+                            <span>{c.cardNo}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Mobile */}
+                  <td className="px-3.5 py-2 border-r border-zinc-200/60 font-mono text-zinc-700">
+                    <span className="flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-zinc-400" />
+                      <span>{c.mobile || "—"}</span>
+                    </span>
+                  </td>
+
+                  {/* City */}
+                  <td className="px-3.5 py-2 border-r border-zinc-200/60 font-sans text-zinc-700">
+                    <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-700">
+                      <MapPin className="h-3 w-3 text-zinc-400" />
+                      <span>{c.city || "—"}</span>
+                    </span>
+                  </td>
+
+                  {/* Branch */}
+                  <td className="px-3.5 py-2 border-r border-zinc-200/60 font-sans text-zinc-700 text-[11px]">
+                    <span className="truncate max-w-[130px] block" title={c.branch}>
+                      {c.branch}
+                    </span>
+                  </td>
+
+                  {/* Credit Balance */}
+                  <td className="px-3.5 py-2 border-r border-zinc-200/60 font-mono text-zinc-900">
+                    <span className="font-semibold text-emerald-700">
+                      ₹{(c.opCreditBalance || 0).toFixed(2)}
+                    </span>
+                  </td>
+
+                  {/* Credit Limit */}
+                  <td className="px-3.5 py-2 border-r border-zinc-200/60 font-mono text-zinc-600">
+                    ₹{(c.creditLimit || 0).toLocaleString("en-IN")}
+                  </td>
+
+                  {/* Group */}
+                  <td className="px-3.5 py-2 border-r border-zinc-200/60 font-sans">
+                    <span className="inline-flex items-center gap-1 rounded bg-zinc-100 text-zinc-700 px-1.5 py-0.5 text-[10px] font-medium">
+                      <Tag className="h-2.5 w-2.5 text-zinc-400" />
+                      <span>{c.group || "General Retail"}</span>
+                    </span>
+                  </td>
+
+                  {/* Status */}
+                  <td className="px-3.5 py-2 border-r border-zinc-200/60">
+                    {c.inactive ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">
+                        Inactive
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                        Active
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Actions */}
+                  <td className="px-3.5 py-2 text-right">
+                    <div className="flex items-center justify-end gap-1 font-sans">
+                      <button
+                        onClick={() => handleOpenEditModal(c)}
+                        className="rounded p-1 text-zinc-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                        title="Edit customer details"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCustomer(c.id, c.customerName)}
+                        className="rounded p-1 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Delete customer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* Pagination Footer */}
-      <div className="border-t border-zinc-200 px-6 py-2.5 bg-zinc-50 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500 font-mono">
+      {/* Pagination Footer matching ProductsView */}
+      <div className="border-t border-zinc-200 px-4 py-2 bg-zinc-50 flex items-center justify-between text-xs text-zinc-500 font-mono">
         <div className="flex items-center gap-3">
           <span>Page {currentPage} of {totalPages}</span>
           <span className="text-zinc-300">|</span>
           <span>{PAGE_SIZE} rows / page</span>
           <span className="text-zinc-300">|</span>
-          <span className="text-emerald-700 font-semibold">{totalCount} total registered customers</span>
+          <span className="text-emerald-700 font-semibold">{totalCount} total customers</span>
         </div>
 
         {/* Page navigation controls */}
         <div className="flex items-center gap-1 font-sans">
-          <button
-            onClick={() => handlePageChange(1)}
-            disabled={currentPage <= 1 || loading}
-            className="flex items-center rounded border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="First page"
-          >
-            First
-          </button>
-
           <button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage <= 1 || loading}
@@ -941,15 +878,6 @@ export default function CustomersView() {
           >
             <span>Next</span>
             <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-
-          <button
-            onClick={() => handlePageChange(totalPages)}
-            disabled={currentPage >= totalPages || loading}
-            className="flex items-center rounded border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Last page"
-          >
-            Last
           </button>
         </div>
       </div>
@@ -1700,214 +1628,20 @@ export default function CustomersView() {
         </div>
       )}
 
-      {/* CUSTOMER DETAIL VIEW DRAWER */}
-      {viewingCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/30 backdrop-blur-xs animate-in fade-in duration-150">
-          <div 
-            className="w-full max-w-lg h-full bg-white shadow-2xl flex flex-col border-l border-zinc-200 text-zinc-900"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 bg-zinc-50/50">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 font-bold text-sm border border-emerald-200/60 uppercase">
-                  {viewingCustomer.customerName.charAt(0) || "C"}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
-                    {viewingCustomer.customerName}
-                    <span className="rounded bg-zinc-100 border border-zinc-200 font-mono text-[10px] px-1.5 py-0.2 text-zinc-700">
-                      {viewingCustomer.customerCode}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-zinc-500">
-                    {viewingCustomer.group} • {viewingCustomer.classification}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setViewingCustomer(null)}
-                className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Drawer Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
-              {/* Profile Card */}
-              <div className="rounded-lg border border-zinc-200 p-4 space-y-2.5">
-                <h4 className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Contact & Location</h4>
-                <div className="grid grid-cols-2 gap-2 text-zinc-800">
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Mobile</span>
-                    <span className="font-mono font-medium">{viewingCustomer.mobile || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Landline</span>
-                    <span className="font-mono font-medium">{viewingCustomer.landLine || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Email</span>
-                    <span className="truncate block font-medium">{viewingCustomer.email || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">City & Pin</span>
-                    <span className="font-medium">{viewingCustomer.city} {viewingCustomer.pin ? `- ${viewingCustomer.pin}` : ""}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-zinc-400 block text-[10px]">Address</span>
-                    <span className="font-medium">{viewingCustomer.address || "—"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Membership & Dates */}
-              <div className="rounded-lg border border-zinc-200 p-4 space-y-2.5">
-                <h4 className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Membership & Dates</h4>
-                <div className="grid grid-cols-2 gap-2 text-zinc-800">
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Card Number</span>
-                    <span className="font-mono font-semibold">{viewingCustomer.cardNo || "No Card"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Card Validity</span>
-                    <span className="font-mono">{viewingCustomer.validity || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">BirthDate</span>
-                    <span>{viewingCustomer.hasBirthDate ? viewingCustomer.birthDate : "Not Set"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Anniversary</span>
-                    <span>{viewingCustomer.hasAnniversary ? viewingCustomer.anniversary : "Not Set"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Entry Date</span>
-                    <span>{viewingCustomer.entryDate || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Branch</span>
-                    <span>{viewingCustomer.branch}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Credit & Terms */}
-              <div className="rounded-lg border border-zinc-200 p-4 space-y-2.5">
-                <h4 className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Credit & Financials</h4>
-                <div className="grid grid-cols-2 gap-2 text-zinc-800 font-mono">
-                  <div>
-                    <span className="text-zinc-400 block text-[10px] font-sans">Op Credit Balance</span>
-                    <span className="text-emerald-700 font-bold">
-                      ₹{(viewingCustomer.opCreditBalance || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px] font-sans">Credit Limit</span>
-                    <span>₹{(viewingCustomer.creditLimit || 0).toLocaleString("en-IN")}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px] font-sans">Credit Days</span>
-                    <span>{viewingCustomer.creditDays || 0} days</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px] font-sans">Stop Credit</span>
-                    <span className={viewingCustomer.stopCredit ? "text-rose-600 font-bold" : "text-zinc-600"}>
-                      {viewingCustomer.stopCredit ? "YES (BLOCKED)" : "NO (ACTIVE)"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px] font-sans">Op Sales</span>
-                    <span>₹{(viewingCustomer.opSales || 0).toLocaleString("en-IN")}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px] font-sans">Bill Cycle</span>
-                    <span>{viewingCustomer.billCycle || 1}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tax & GST */}
-              <div className="rounded-lg border border-zinc-200 p-4 space-y-2.5">
-                <h4 className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Tax & GST</h4>
-                <div className="grid grid-cols-2 gap-2 text-zinc-800">
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">GSTIN</span>
-                    <span className="font-mono font-medium">{viewingCustomer.gstNo || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Place of Supply</span>
-                    <span>{viewingCustomer.placeOfSupply || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">TIN</span>
-                    <span className="font-mono">{viewingCustomer.tin || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Default Discount</span>
-                    <span className="font-mono">{viewingCustomer.discountPercent || 0}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Communication Flags */}
-              <div className="rounded-lg border border-zinc-200 p-4 space-y-2">
-                <h4 className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Flags & Preferences</h4>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${viewingCustomer.inactive ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
-                    {viewingCustomer.inactive ? "Inactive Account" : "Active Account"}
-                  </span>
-                  {viewingCustomer.blockTSMS && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                      Block T-SMS
-                    </span>
-                  )}
-                  {viewingCustomer.blockPSMS && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                      Block P-SMS
-                    </span>
-                  )}
-                  {viewingCustomer.blockWA && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                      Block WhatsApp
-                    </span>
-                  )}
-                  {viewingCustomer.dontFollowup && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">
-                      Do Not Followup
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Drawer Footer */}
-            <div className="border-t border-zinc-200 p-4 bg-zinc-50 flex items-center justify-between">
-              <button
-                onClick={() => handleDeleteCustomer(viewingCustomer.id, viewingCustomer.customerName)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Delete</span>
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const toEdit = viewingCustomer;
-                    setViewingCustomer(null);
-                    handleOpenEditModal(toEdit);
-                  }}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 transition-colors cursor-pointer"
-                >
-                  <Edit3 className="h-3.5 w-3.5" />
-                  <span>Edit Profile</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Customer Bulk Upload Modal */}
+      <CustomerBulkUploadModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onUploadSuccess={(importedCount) => {
+          pageSnapshotsRef.current = {};
+          fetchTotalCount();
+          fetchPage(1);
+          setToast({
+            type: "success",
+            message: `Successfully imported ${importedCount} customers!`,
+          });
+        }}
+      />
 
       {/* Floating Supabase Toast */}
       <Toast toast={toast} onClose={() => setToast(null)} />

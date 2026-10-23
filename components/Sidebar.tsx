@@ -36,7 +36,6 @@ export default function Sidebar() {
   const [variantCount, setVariantCount] = useState<number | null>(null);
   const [storeCount, setStoreCount] = useState<number | null>(null);
   const [warehouseCount, setWarehouseCount] = useState<number | null>(null);
-  const [customerCount, setCustomerCount] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -50,7 +49,6 @@ export default function Sidebar() {
     let unsubVar: () => void = () => {};
     let unsubStores: () => void = () => {};
     let unsubWarehouses: () => void = () => {};
-    let unsubCustomers: () => void = () => {};
 
     try {
       unsubProd = onSnapshot(collection(db, "products"), (snap) => {
@@ -72,10 +70,6 @@ export default function Sidebar() {
       unsubWarehouses = onSnapshot(collection(db, "warehouses"), (snap) => {
         setWarehouseCount(snap.size);
       }, (err) => console.warn("Warehouse listener notice:", err));
-
-      unsubCustomers = onSnapshot(collection(db, "customers"), (snap) => {
-        setCustomerCount(snap.size);
-      }, (err) => console.warn("Customer listener notice:", err));
     } catch (e) {
       console.warn("Firestore listeners error:", e);
     }
@@ -86,7 +80,6 @@ export default function Sidebar() {
       unsubVar();
       unsubStores();
       unsubWarehouses();
-      unsubCustomers();
     };
   }, []);
 
@@ -304,22 +297,14 @@ export default function Sidebar() {
 
           <Link
             href="/customers"
-            className={`flex items-center justify-between rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-colors ${
+            className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-colors ${
               isActive("/customers")
                 ? "bg-zinc-100 text-zinc-900 font-semibold"
                 : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
             }`}
           >
-            <div className="flex items-center gap-2.5">
-              <Users className="h-4 w-4 text-emerald-600" />
-              <span>Customers</span>
-            </div>
-            <span 
-              suppressHydrationWarning 
-              className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200"
-            >
-              {mounted && customerCount !== null ? customerCount : "..."}
-            </span>
+            <Users className="h-4 w-4 text-zinc-500" />
+            <span>Customers</span>
           </Link>
         </div>
 
