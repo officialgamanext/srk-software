@@ -570,7 +570,7 @@ export default function CustomersView() {
   });
 
   return (
-    <div className="flex-1 flex flex-col h-[calc(100vh-3rem)] overflow-hidden bg-white select-none">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-white select-none">
       {/* Top Header Bar matching ProductsView */}
       <div className="border-b border-zinc-200 bg-white px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -679,8 +679,8 @@ export default function CustomersView() {
             )}
           </div>
         ) : (
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="sticky top-0 bg-zinc-50/95 backdrop-blur-xs border-b border-zinc-200 text-zinc-500 font-medium">
+          <table className="w-full min-w-[1050px] text-left text-xs border-collapse">
+            <thead className="sticky top-0 bg-zinc-50 border-b border-zinc-200 text-zinc-500 font-medium whitespace-nowrap z-10">
               <tr>
                 <th className="w-10 px-3 py-2 text-center border-r border-zinc-200/60">
                   <input type="checkbox" className="rounded border-zinc-300 text-emerald-600 cursor-pointer" />

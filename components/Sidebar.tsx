@@ -25,22 +25,20 @@ import {
   Activity, 
   Layers, 
   HelpCircle, 
-  ExternalLink
+  ExternalLink,
+  Inbox,
+  Truck
 } from "lucide-react";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [productManagerOpen, setProductManagerOpen] = useState(true);
+  const [stockManagerOpen, setStockManagerOpen] = useState(true);
   const [productCount, setProductCount] = useState<number | null>(null);
   const [categoryCount, setCategoryCount] = useState<number | null>(null);
   const [variantCount, setVariantCount] = useState<number | null>(null);
   const [storeCount, setStoreCount] = useState<number | null>(null);
   const [warehouseCount, setWarehouseCount] = useState<number | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Subscribe to count updates from Firestore
   useEffect(() => {
@@ -94,8 +92,14 @@ export default function Sidebar() {
     isActive("/categories") || 
     isActive("/variants");
 
+  const isStockManagerActive = 
+    isActive("/inventory") || 
+    isActive("/store-room") || 
+    isActive("/store-requests") || 
+    isActive("/stock-transfer");
+
   return (
-    <aside className="w-56 shrink-0 border-r border-zinc-200 bg-white flex flex-col justify-between h-[calc(100vh-3rem)] text-xs select-none">
+    <aside className="w-56 shrink-0 border-r border-zinc-200 bg-white flex flex-col justify-between h-full text-xs select-none">
       {/* Primary Navigation List */}
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {/* Dashboard Link */}
@@ -158,7 +162,7 @@ export default function Sidebar() {
                   suppressHydrationWarning 
                   className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200"
                 >
-                  {mounted && productCount !== null ? productCount : "..."}
+                  {productCount !== null ? productCount : "—"}
                 </span>
               </Link>
 
@@ -179,7 +183,7 @@ export default function Sidebar() {
                   suppressHydrationWarning 
                   className="text-[10px] text-emerald-700 font-mono font-medium bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50"
                 >
-                  {mounted && categoryCount !== null ? categoryCount : "..."}
+                  {categoryCount !== null ? categoryCount : "—"}
                 </span>
               </Link>
 
@@ -200,8 +204,101 @@ export default function Sidebar() {
                   suppressHydrationWarning 
                   className="text-[10px] text-emerald-700 font-mono font-medium bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50"
                 >
-                  {mounted && variantCount !== null ? variantCount : "..."}
+                  {variantCount !== null ? variantCount : "—"}
                 </span>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Stock Manager Accordion */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setStockManagerOpen(!stockManagerOpen)}
+            className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-all ${
+              isStockManagerActive
+                ? "text-zinc-900 bg-zinc-50/70"
+                : "text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Boxes className={`h-4 w-4 shrink-0 ${isStockManagerActive ? "text-emerald-600" : "text-zinc-500"}`} />
+              <span className="font-medium">Stock Manager</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="rounded bg-emerald-50 border border-emerald-200/50 px-1 py-0.2 text-[9px] font-semibold text-emerald-700">
+                STOCK
+              </span>
+              {stockManagerOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
+              )}
+            </div>
+          </button>
+
+          {/* Sub-items inside Stock Manager Accordion */}
+          {stockManagerOpen && (
+            <div className="mt-1 ml-4 pl-2 border-l border-zinc-200/80 space-y-0.5">
+              {/* Inventory Stock */}
+              <Link
+                href="/inventory"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/inventory")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Warehouse className={`h-3.5 w-3.5 shrink-0 ${isActive("/inventory") ? "text-zinc-900" : "text-zinc-400"}`} />
+                  <span>Inventory Stock</span>
+                </div>
+              </Link>
+
+              {/* Store Room */}
+              <Link
+                href="/store-room"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/store-room")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Store className={`h-3.5 w-3.5 shrink-0 ${isActive("/store-room") ? "text-zinc-900" : "text-zinc-400"}`} />
+                  <span>Store Room</span>
+                </div>
+              </Link>
+
+              {/* Store Requests */}
+              <Link
+                href="/store-requests"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/store-requests")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Inbox className={`h-3.5 w-3.5 shrink-0 ${isActive("/store-requests") ? "text-zinc-900" : "text-zinc-400"}`} />
+                  <span>Store Requests</span>
+                </div>
+              </Link>
+
+              {/* Stock Transfer */}
+              <Link
+                href="/stock-transfer"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/stock-transfer")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Truck className={`h-3.5 w-3.5 shrink-0 ${isActive("/stock-transfer") ? "text-zinc-900" : "text-zinc-400"}`} />
+                  <span>Stock Transfer</span>
+                </div>
               </Link>
             </div>
           )}
@@ -229,7 +326,7 @@ export default function Sidebar() {
               suppressHydrationWarning 
               className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200"
             >
-              {mounted && storeCount !== null ? storeCount : "..."}
+              {storeCount !== null ? storeCount : "—"}
             </span>
           </Link>
 
@@ -250,7 +347,7 @@ export default function Sidebar() {
               suppressHydrationWarning 
               className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200"
             >
-              {mounted && warehouseCount !== null ? warehouseCount : "..."}
+              {warehouseCount !== null ? warehouseCount : "—"}
             </span>
           </Link>
 
@@ -281,18 +378,6 @@ export default function Sidebar() {
           >
             <Receipt className="h-4 w-4 text-zinc-500" />
             <span>Orders & Bills</span>
-          </Link>
-
-          <Link
-            href="/inventory"
-            className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-colors ${
-              isActive("/inventory")
-                ? "bg-zinc-100 text-zinc-900 font-semibold"
-                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-            }`}
-          >
-            <Warehouse className="h-4 w-4 text-zinc-500" />
-            <span>Inventory Stock</span>
           </Link>
 
           <Link

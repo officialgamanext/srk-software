@@ -1,21 +1,21 @@
-import ComingSoonView from "@/components/ComingSoonView";
+import { Suspense } from "react";
+import InventoryStockView from "@/components/InventoryStockView";
+
+export const metadata = {
+  title: "Multi-Location Inventory Stock Matrix | SRK Retail Software",
+  description: "Stock ledger matrix with columns for each warehouse and store, variant breakdowns, and live adjustments",
+};
 
 export default function InventoryPage() {
-  const sampleInventory = [
-    { id: "inv_101", sku_code: "WH-A1", product_name: "Warehouse Depot A (Bulk Dry Storage)", category: "Main Storage", price: "Capacity: 85%", stock_qty: "4,200 Units", barcode: "HYD-WH1", status: "In Stock" },
-    { id: "inv_102", sku_code: "WH-B2", product_name: "Cold Storage Locker B (Dairy)", category: "Cold Chain 4°C", price: "Capacity: 60%", stock_qty: "850 Units", barcode: "HYD-CLD", status: "In Stock" },
-  ];
-
   return (
-    <ComingSoonView
-      category="Retail Operations"
-      moduleName="Inventory & Stock Movement"
-      path="/inventory"
-      description="Stock reconciliations, purchase orders (PO), vendor goods receipt note (GRN), and warehouse transfers"
-      badge="STOCK LEDGER"
-      itemCount={840}
-      columns={["id", "sku_code", "product_name", "category", "price", "stock_qty", "barcode", "status"]}
-      sampleData={sampleInventory}
-    />
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center bg-white text-xs text-zinc-500 font-mono">
+          Loading Inventory Matrix...
+        </div>
+      }
+    >
+      <InventoryStockView />
+    </Suspense>
   );
 }

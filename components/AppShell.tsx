@@ -32,7 +32,7 @@ export default function AppShell({ children }: AppShellProps) {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-zinc-900 font-sans antialiased selection:bg-emerald-500 selection:text-white">
+    <div className="flex h-screen flex-col bg-white text-zinc-900 font-sans antialiased selection:bg-emerald-500 selection:text-white overflow-hidden">
       {/* Top Supabase Header */}
       <Header 
         onOpenPrinterModal={() => setIsPrinterModalOpen(true)} 
@@ -40,9 +40,9 @@ export default function AppShell({ children }: AppShellProps) {
       />
 
       {/* Main Layout: Sidebar + Page Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-h-0 min-w-0">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto min-w-0 bg-white">
           {children}
         </main>
       </div>
