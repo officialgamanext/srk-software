@@ -37,6 +37,11 @@ export default function Sidebar() {
   const [storeCount, setStoreCount] = useState<number | null>(null);
   const [warehouseCount, setWarehouseCount] = useState<number | null>(null);
   const [customerCount, setCustomerCount] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Subscribe to count updates from Firestore
   useEffect(() => {
@@ -156,8 +161,11 @@ export default function Sidebar() {
                   <Boxes className={`h-3.5 w-3.5 shrink-0 ${isActive("/products") ? "text-zinc-900" : "text-zinc-400"}`} />
                   <span>Products</span>
                 </div>
-                <span className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200">
-                  {productCount !== null ? productCount : "..."}
+                <span 
+                  suppressHydrationWarning 
+                  className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200"
+                >
+                  {mounted && productCount !== null ? productCount : "..."}
                 </span>
               </Link>
 
@@ -174,8 +182,11 @@ export default function Sidebar() {
                   <FolderTree className={`h-3.5 w-3.5 shrink-0 ${isActive("/categories") ? "text-zinc-900" : "text-zinc-400"}`} />
                   <span>Categories</span>
                 </div>
-                <span className="text-[10px] text-emerald-700 font-mono font-medium bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50">
-                  {categoryCount !== null ? categoryCount : "..."}
+                <span 
+                  suppressHydrationWarning 
+                  className="text-[10px] text-emerald-700 font-mono font-medium bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50"
+                >
+                  {mounted && categoryCount !== null ? categoryCount : "..."}
                 </span>
               </Link>
 
@@ -192,8 +203,11 @@ export default function Sidebar() {
                   <SlidersHorizontal className={`h-3.5 w-3.5 shrink-0 ${isActive("/variants") ? "text-zinc-900" : "text-zinc-400"}`} />
                   <span>Variants</span>
                 </div>
-                <span className="text-[10px] text-emerald-700 font-mono font-medium bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50">
-                  {variantCount !== null ? variantCount : "..."}
+                <span 
+                  suppressHydrationWarning 
+                  className="text-[10px] text-emerald-700 font-mono font-medium bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50"
+                >
+                  {mounted && variantCount !== null ? variantCount : "..."}
                 </span>
               </Link>
             </div>
@@ -218,8 +232,11 @@ export default function Sidebar() {
               <Store className="h-4 w-4 text-emerald-600" />
               <span>Stores</span>
             </div>
-            <span className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200">
-              {storeCount !== null ? storeCount : "..."}
+            <span 
+              suppressHydrationWarning 
+              className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200"
+            >
+              {mounted && storeCount !== null ? storeCount : "..."}
             </span>
           </Link>
 
@@ -236,8 +253,11 @@ export default function Sidebar() {
               <Warehouse className="h-4 w-4 text-zinc-600" />
               <span>Warehouses</span>
             </div>
-            <span className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200">
-              {warehouseCount !== null ? warehouseCount : "..."}
+            <span 
+              suppressHydrationWarning 
+              className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200"
+            >
+              {mounted && warehouseCount !== null ? warehouseCount : "..."}
             </span>
           </Link>
 
@@ -294,8 +314,11 @@ export default function Sidebar() {
               <Users className="h-4 w-4 text-emerald-600" />
               <span>Customers</span>
             </div>
-            <span className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200">
-              {customerCount !== null ? customerCount : "..."}
+            <span 
+              suppressHydrationWarning 
+              className="text-[10px] text-zinc-600 font-mono font-medium bg-zinc-100 px-1.5 py-0.2 rounded border border-zinc-200"
+            >
+              {mounted && customerCount !== null ? customerCount : "..."}
             </span>
           </Link>
         </div>
