@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import PrinterModal from "./PrinterModal";
@@ -41,7 +41,9 @@ export default function AppShell({ children }: AppShellProps) {
 
       {/* Main Layout: Sidebar + Page Content */}
       <div className="flex flex-1 overflow-hidden min-h-0 min-w-0">
-        <Sidebar />
+        <Suspense fallback={<aside className="w-56 shrink-0 border-r border-zinc-200 bg-white" />}>
+          <Sidebar />
+        </Suspense>
         <main className="flex-1 overflow-y-auto min-w-0 bg-white">
           {children}
         </main>

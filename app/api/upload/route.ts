@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file");
     const customFileName = formData.get("fileName") as string | null;
 
+    const customFolder = formData.get("folder") as string | null;
+
     if (!file) {
       return NextResponse.json(
         { error: "No file provided in form data" },
@@ -25,9 +27,9 @@ export async function POST(req: NextRequest) {
     ikFormData.append("file", file);
     ikFormData.append(
       "fileName",
-      customFileName || `product_${Date.now()}_img.webp`
+      customFileName || `upload_${Date.now()}_img.webp`
     );
-    ikFormData.append("folder", "/products");
+    ikFormData.append("folder", customFolder || "/products");
     ikFormData.append("useUniqueFileName", "true");
 
     const authHeader = `Basic ${Buffer.from(privateKey + ":").toString("base64")}`;

@@ -29,7 +29,11 @@ import {
   Inbox,
   Truck,
   Tag,
-  Percent
+  Percent,
+  UserCheck,
+  QrCode,
+  Calendar,
+  CreditCard
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -37,12 +41,14 @@ export default function Sidebar() {
   const [productManagerOpen, setProductManagerOpen] = useState(true);
   const [stockManagerOpen, setStockManagerOpen] = useState(true);
   const [discountManagerOpen, setDiscountManagerOpen] = useState(true);
+  const [employeeManagerOpen, setEmployeeManagerOpen] = useState(true);
   const [productCount, setProductCount] = useState<number | null>(null);
   const [categoryCount, setCategoryCount] = useState<number | null>(null);
   const [variantCount, setVariantCount] = useState<number | null>(null);
   const [storeCount, setStoreCount] = useState<number | null>(null);
   const [warehouseCount, setWarehouseCount] = useState<number | null>(null);
   const [discountCount, setDiscountCount] = useState<number | null>(null);
+  const [employeeCount, setEmployeeCount] = useState<number | null>(null);
 
   // Subscribe to count updates from Firestore
   useEffect(() => {
@@ -52,6 +58,7 @@ export default function Sidebar() {
     let unsubStores: () => void = () => {};
     let unsubWarehouses: () => void = () => {};
     let unsubDiscounts: () => void = () => {};
+    let unsubEmployees: () => void = () => {};
 
     try {
       unsubProd = onSnapshot(collection(db, "products"), (snap) => {
@@ -77,6 +84,10 @@ export default function Sidebar() {
       unsubDiscounts = onSnapshot(collection(db, "discounts"), (snap) => {
         setDiscountCount(snap.size);
       }, (err) => console.warn("Discounts listener notice:", err));
+
+      unsubEmployees = onSnapshot(collection(db, "employees"), (snap) => {
+        setEmployeeCount(snap.size);
+      }, (err) => console.warn("Employees listener notice:", err));
     } catch (e) {
       console.warn("Firestore listeners error:", e);
     }
@@ -88,6 +99,7 @@ export default function Sidebar() {
       unsubStores();
       unsubWarehouses();
       unsubDiscounts();
+      unsubEmployees();
     };
   }, []);
 
@@ -110,6 +122,9 @@ export default function Sidebar() {
 
   const isDiscountManagerActive = 
     isActive("/discounts");
+
+  const isEmployeeManagerActive = 
+    isActive("/employees");
 
   return (
     <aside className="w-56 shrink-0 border-r border-zinc-200 bg-white flex flex-col justify-between h-full text-xs select-none">
@@ -411,6 +426,108 @@ export default function Sidebar() {
                   <Users className={`h-3.5 w-3.5 shrink-0 ${isActive("/discounts/customer") ? "text-purple-700" : "text-zinc-400"}`} />
                   <span>Customer Discounts</span>
                 </div>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Employee Manager Accordion */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setEmployeeManagerOpen(!employeeManagerOpen)}
+            className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-all ${
+              isEmployeeManagerActive
+                ? "text-zinc-900 bg-zinc-50/70"
+                : "text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <UserCheck className={`h-4 w-4 shrink-0 ${isEmployeeManagerActive ? "text-emerald-600" : "text-zinc-500"}`} />
+              <span className="font-medium">Employee Manager</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="rounded bg-emerald-50 border border-emerald-200/50 px-1 py-0.2 text-[9px] font-semibold text-emerald-700">
+                STAFF
+              </span>
+              {employeeManagerOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
+              )}
+            </div>
+          </button>
+
+          {/* Sub-items inside Employee Manager Accordion */}
+          {employeeManagerOpen && (
+            <div className="mt-1 ml-4 pl-2 border-l border-zinc-200/80 space-y-0.5">
+              {/* All Employees */}
+              <Link
+                href="/employees"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  pathname === "/employees"
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Users className={`h-3.5 w-3.5 shrink-0 ${pathname === "/employees" ? "text-zinc-900" : "text-zinc-400"}`} />
+                  <span>Employees</span>
+                </div>
+                <span 
+                  suppressHydrationWarning 
+                  className="text-[10px] text-emerald-700 font-mono font-medium bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50"
+                >
+                  {employeeCount !== null ? employeeCount : "—"}
+                </span>
+              </Link>
+
+              {/* ID Cards */}
+              <Link
+                href="/employees/id-cards"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/employees/id-cards")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <CreditCard className={`h-3.5 w-3.5 shrink-0 ${isActive("/employees/id-cards") ? "text-emerald-700" : "text-zinc-400"}`} />
+                  <span>ID Cards</span>
+                </div>
+              </Link>
+
+              {/* Attendance */}
+              <Link
+                href="/employees/attendance"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/employees/attendance")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className={`h-3.5 w-3.5 shrink-0 ${isActive("/employees/attendance") ? "text-blue-700" : "text-zinc-400"}`} />
+                  <span>Attendance</span>
+                </div>
+              </Link>
+
+              {/* Scan Attendance QR */}
+              <Link
+                href="/employees/scan"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/employees/scan")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <QrCode className={`h-3.5 w-3.5 shrink-0 ${isActive("/employees/scan") ? "text-emerald-700" : "text-zinc-400"}`} />
+                  <span>Scan Attendance</span>
+                </div>
+                <span className="rounded bg-emerald-100 text-emerald-800 px-1 py-0.2 text-[9px] font-mono font-bold">
+                  QR
+                </span>
               </Link>
             </div>
           )}
