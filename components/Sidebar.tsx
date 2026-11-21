@@ -27,18 +27,22 @@ import {
   HelpCircle, 
   ExternalLink,
   Inbox,
-  Truck
+  Truck,
+  Tag,
+  Percent
 } from "lucide-react";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [productManagerOpen, setProductManagerOpen] = useState(true);
   const [stockManagerOpen, setStockManagerOpen] = useState(true);
+  const [discountManagerOpen, setDiscountManagerOpen] = useState(true);
   const [productCount, setProductCount] = useState<number | null>(null);
   const [categoryCount, setCategoryCount] = useState<number | null>(null);
   const [variantCount, setVariantCount] = useState<number | null>(null);
   const [storeCount, setStoreCount] = useState<number | null>(null);
   const [warehouseCount, setWarehouseCount] = useState<number | null>(null);
+  const [discountCount, setDiscountCount] = useState<number | null>(null);
 
   // Subscribe to count updates from Firestore
   useEffect(() => {
@@ -47,6 +51,7 @@ export default function Sidebar() {
     let unsubVar: () => void = () => {};
     let unsubStores: () => void = () => {};
     let unsubWarehouses: () => void = () => {};
+    let unsubDiscounts: () => void = () => {};
 
     try {
       unsubProd = onSnapshot(collection(db, "products"), (snap) => {
@@ -68,6 +73,10 @@ export default function Sidebar() {
       unsubWarehouses = onSnapshot(collection(db, "warehouses"), (snap) => {
         setWarehouseCount(snap.size);
       }, (err) => console.warn("Warehouse listener notice:", err));
+
+      unsubDiscounts = onSnapshot(collection(db, "discounts"), (snap) => {
+        setDiscountCount(snap.size);
+      }, (err) => console.warn("Discounts listener notice:", err));
     } catch (e) {
       console.warn("Firestore listeners error:", e);
     }
@@ -78,6 +87,7 @@ export default function Sidebar() {
       unsubVar();
       unsubStores();
       unsubWarehouses();
+      unsubDiscounts();
     };
   }, []);
 
@@ -97,6 +107,9 @@ export default function Sidebar() {
     isActive("/store-room") || 
     isActive("/store-requests") || 
     isActive("/stock-transfer");
+
+  const isDiscountManagerActive = 
+    isActive("/discounts");
 
   return (
     <aside className="w-56 shrink-0 border-r border-zinc-200 bg-white flex flex-col justify-between h-full text-xs select-none">
@@ -298,6 +311,105 @@ export default function Sidebar() {
                 <div className="flex items-center gap-2">
                   <Truck className={`h-3.5 w-3.5 shrink-0 ${isActive("/stock-transfer") ? "text-zinc-900" : "text-zinc-400"}`} />
                   <span>Stock Transfer</span>
+                </div>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Discount Manager Accordion */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setDiscountManagerOpen(!discountManagerOpen)}
+            className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 font-medium cursor-pointer transition-all ${
+              isDiscountManagerActive
+                ? "text-zinc-900 bg-zinc-50/70"
+                : "text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Tag className={`h-4 w-4 shrink-0 ${isDiscountManagerActive ? "text-emerald-600" : "text-zinc-500"}`} />
+              <span className="font-medium">Discount Manager</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="rounded bg-emerald-50 border border-emerald-200/50 px-1 py-0.2 text-[9px] font-semibold text-emerald-700">
+                PROMO
+              </span>
+              {discountManagerOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
+              )}
+            </div>
+          </button>
+
+          {/* Sub-items inside Discount Manager Accordion */}
+          {discountManagerOpen && (
+            <div className="mt-1 ml-4 pl-2 border-l border-zinc-200/80 space-y-0.5">
+              {/* All Discounts */}
+              <Link
+                href="/discounts"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  pathname === "/discounts"
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Percent className={`h-3.5 w-3.5 shrink-0 ${pathname === "/discounts" ? "text-zinc-900" : "text-zinc-400"}`} />
+                  <span>All Discounts</span>
+                </div>
+                <span 
+                  suppressHydrationWarning 
+                  className="text-[10px] text-emerald-700 font-mono font-medium bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/50"
+                >
+                  {discountCount !== null ? discountCount : "—"}
+                </span>
+              </Link>
+
+              {/* Order Discounts */}
+              <Link
+                href="/discounts/order"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/discounts/order")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className={`h-3.5 w-3.5 shrink-0 ${isActive("/discounts/order") ? "text-blue-700" : "text-zinc-400"}`} />
+                  <span>Order Discounts</span>
+                </div>
+              </Link>
+
+              {/* Product Discounts */}
+              <Link
+                href="/discounts/product"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/discounts/product")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Boxes className={`h-3.5 w-3.5 shrink-0 ${isActive("/discounts/product") ? "text-amber-700" : "text-zinc-400"}`} />
+                  <span>Product Discounts</span>
+                </div>
+              </Link>
+
+              {/* Customer Discounts */}
+              <Link
+                href="/discounts/customer"
+                className={`flex items-center justify-between rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                  isActive("/discounts/customer")
+                    ? "bg-zinc-100 text-zinc-900 font-semibold"
+                    : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Users className={`h-3.5 w-3.5 shrink-0 ${isActive("/discounts/customer") ? "text-purple-700" : "text-zinc-400"}`} />
+                  <span>Customer Discounts</span>
                 </div>
               </Link>
             </div>
