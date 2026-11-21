@@ -32,8 +32,7 @@ import {
   Percent,
   UserCheck,
   QrCode,
-  Calendar,
-  CreditCard
+  Calendar
 } from "lucide-react";
 
 export default function Sidebar() {
