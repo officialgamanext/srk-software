@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Toast, { type ToastMessage } from "@/components/Toast";
+import EmployeeBulkUploadModal from "@/components/EmployeeBulkUploadModal";
 import { 
   generate8DigitEmpId, 
   uploadFileToImageKit, 
@@ -46,6 +47,7 @@ import {
   Eye,
   Camera,
   Upload,
+  UploadCloud,
   CreditCard,
   FileText,
   BadgeCheck,
@@ -148,6 +150,7 @@ export default function EmployeesView() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState<boolean>(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Omit<EmployeeItem, "id">>(getDefaultEmployeeFormData());
@@ -612,6 +615,15 @@ export default function EmployeesView() {
             </button>
 
             <button
+              onClick={() => setIsBulkModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer transition-colors shadow-xs"
+              title="Bulk import staff from Excel / CSV"
+            >
+              <UploadCloud className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Bulk Import</span>
+            </button>
+
+            <button
               onClick={openAddModal}
               className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer transition-all shadow-xs active:scale-95"
             >
@@ -755,13 +767,22 @@ export default function EmployeesView() {
                   : "No staff records added yet. Click 'Add Employee' to register staff with ImageKit KYC documents and auto 8-digit unique ID."}
               </p>
             </div>
-            <button
-              onClick={openAddModal}
-              className="mt-2 flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer shadow-xs transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add First Employee</span>
-            </button>
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                onClick={() => setIsBulkModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer shadow-xs transition-colors"
+              >
+                <UploadCloud className="h-4 w-4 text-emerald-600" />
+                <span>Bulk Import Excel</span>
+              </button>
+              <button
+                onClick={openAddModal}
+                className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer shadow-xs transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add First Employee</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xs">
@@ -1616,6 +1637,20 @@ export default function EmployeesView() {
           </div>
         </div>
       )}
+      {/* Employee Bulk Upload Modal */}
+      <EmployeeBulkUploadModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onUploadSuccess={(count) => {
+          setToast({
+            type: "success",
+            message: `Successfully imported ${count} staff members in bulk!`,
+          });
+          fetchTotalCount();
+          fetchPage(1);
+          setCurrentPage(1);
+        }}
+      />
     </div>
   );
 }
